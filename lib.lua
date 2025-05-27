@@ -126,35 +126,155 @@ function finity:CreateWindow(options)
 		Center = options.Center or false,
 		AutoShow = options.AutoShow or false,
 		TabPadding = options.TabPadding or 8,
-		MenuFadeTime = options.MenuFadeTime or 0.2
+		MenuFadeTime = options.MenuFadeTime or 0.2,
+		Tabs = {}
 	}
 	
 	-- Add tab creation functionality
 	function window:AddTab(name)
-		return {
-			AddLeftGroupbox = function(self, title)
-				return {
-					AddLabel = function(self, text)
-						-- Add label functionality
-					end,
-					AddToggle = function(self, name, options)
-						-- Add toggle functionality
-					end,
-					AddSlider = function(self, name, options)
-						-- Add slider functionality
-					end,
-					AddButton = function(self, options)
-						-- Add button functionality
-					end,
-					AddDivider = function(self)
-						-- Add divider functionality
-					end
-				}
-			end,
-			AddRightGroupbox = function(self, title)
-				-- Same as AddLeftGroupbox
-			end
+		local tab = {
+			Name = name,
+			LeftGroupboxes = {},
+			RightGroupboxes = {}
 		}
+		
+		function tab:AddLeftGroupbox(title)
+			local groupbox = {
+				Title = title,
+				Elements = {}
+			}
+			
+			function groupbox:AddLabel(text)
+				local label = {
+					Type = "Label",
+					Text = text
+				}
+				table.insert(self.Elements, label)
+				return self
+			end
+			
+			function groupbox:AddToggle(name, options)
+				local toggle = {
+					Type = "Toggle",
+					Name = name,
+					Text = options.Text,
+					Default = options.Default or false,
+					Tooltip = options.Tooltip,
+					Callback = options.Callback
+				}
+				table.insert(self.Elements, toggle)
+				return self
+			end
+			
+			function groupbox:AddSlider(name, options)
+				local slider = {
+					Type = "Slider",
+					Name = name,
+					Text = options.Text,
+					Default = options.Default or 0,
+					Min = options.Min or 0,
+					Max = options.Max or 100,
+					Tooltip = options.Tooltip,
+					Callback = options.Callback
+				}
+				table.insert(self.Elements, slider)
+				return self
+			end
+			
+			function groupbox:AddButton(options)
+				local button = {
+					Type = "Button",
+					Text = options.Text,
+					Func = options.Func,
+					DoubleClick = options.DoubleClick or false,
+					Tooltip = options.Tooltip
+				}
+				table.insert(self.Elements, button)
+				return self
+			end
+			
+			function groupbox:AddDivider()
+				local divider = {
+					Type = "Divider"
+				}
+				table.insert(self.Elements, divider)
+				return self
+			end
+			
+			table.insert(tab.LeftGroupboxes, groupbox)
+			return groupbox
+		end
+		
+		function tab:AddRightGroupbox(title)
+			local groupbox = {
+				Title = title,
+				Elements = {}
+			}
+			
+			-- Same functions as AddLeftGroupbox
+			function groupbox:AddLabel(text)
+				local label = {
+					Type = "Label",
+					Text = text
+				}
+				table.insert(self.Elements, label)
+				return self
+			end
+			
+			function groupbox:AddToggle(name, options)
+				local toggle = {
+					Type = "Toggle",
+					Name = name,
+					Text = options.Text,
+					Default = options.Default or false,
+					Tooltip = options.Tooltip,
+					Callback = options.Callback
+				}
+				table.insert(self.Elements, toggle)
+				return self
+			end
+			
+			function groupbox:AddSlider(name, options)
+				local slider = {
+					Type = "Slider",
+					Name = name,
+					Text = options.Text,
+					Default = options.Default or 0,
+					Min = options.Min or 0,
+					Max = options.Max or 100,
+					Tooltip = options.Tooltip,
+					Callback = options.Callback
+				}
+				table.insert(self.Elements, slider)
+				return self
+			end
+			
+			function groupbox:AddButton(options)
+				local button = {
+					Type = "Button",
+					Text = options.Text,
+					Func = options.Func,
+					DoubleClick = options.DoubleClick or false,
+					Tooltip = options.Tooltip
+				}
+				table.insert(self.Elements, button)
+				return self
+			end
+			
+			function groupbox:AddDivider()
+				local divider = {
+					Type = "Divider"
+				}
+				table.insert(self.Elements, divider)
+				return self
+			end
+			
+			table.insert(tab.RightGroupboxes, groupbox)
+			return groupbox
+		end
+		
+		table.insert(window.Tabs, tab)
+		return tab
 	end
 	
 	return window
