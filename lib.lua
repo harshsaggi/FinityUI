@@ -317,6 +317,7 @@ function finity.new(isdark, gprojectName, thinProject)
 
 	-- Window Animation Functions
 	local function animateWindow(property, targetValue, duration)
+		if not self2.container then return end
 		duration = duration or animationSpeed
 		local tweenInfo = TweenInfo.new(duration, animationStyle, animationDirection)
 		local tween = finity.gs["TweenService"]:Create(self2.container, tweenInfo, {[property] = targetValue})
@@ -326,15 +327,14 @@ function finity.new(isdark, gprojectName, thinProject)
 
 	-- Window Focus Management
 	local function updateWindowFocus()
-		if self2.container and typeof(self2.container) == "Instance" then
-			windowFocused = self2.container:IsMouseOver()
-			if windowFocused ~= lastFocused then
-				lastFocused = windowFocused
-				if windowFocused then
-					animateWindow("BackgroundTransparency", 0)
-				else
-					animateWindow("BackgroundTransparency", 0.1)
-				end
+		if not self2.container or typeof(self2.container) ~= "Instance" then return end
+		windowFocused = self2.container:IsMouseOver()
+		if windowFocused ~= lastFocused then
+			lastFocused = windowFocused
+			if windowFocused then
+				animateWindow("BackgroundTransparency", 0)
+			else
+				animateWindow("BackgroundTransparency", 0.1)
 			end
 		end
 	end
@@ -417,410 +417,32 @@ function finity.new(isdark, gprojectName, thinProject)
 	end
 
 	-- Add focus update to RunService
-	finity.gs["RunService"].RenderStepped:Connect(updateWindowFocus)
-
-	-- Load saved state
-	loadWindowState()
-
-	-- Window Controls
-	self2.Close = function()
-		self2.userinterface:Destroy()
-	end
-
-	-- Window Controls UI
-	local controls = self:Create("Frame", {
-		Name = "Controls",
-		BackgroundTransparency = 1,
-		Position = UDim2.new(1, -90, 0, 0),
-		Size = UDim2.new(0, 90, 0, 30),
-		ZIndex = 3
-	})
-
-	local minimizeButton = self:Create("TextButton", {
-		Name = "Minimize",
-		BackgroundTransparency = 1,
-		Position = UDim2.new(0, 0, 0, 0),
-		Size = UDim2.new(0, 30, 1, 0),
-		Text = "─",
-		Font = Enum.Font.GothamBold,
-		TextColor3 = theme.text_color,
-		TextSize = 14,
-		ZIndex = 3
-	})
-
-	local maximizeButton = self:Create("TextButton", {
-		Name = "Maximize",
-		BackgroundTransparency = 1,
-		Position = UDim2.new(0, 30, 0, 0),
-		Size = UDim2.new(0, 30, 1, 0),
-		Text = "□",
-		Font = Enum.Font.GothamBold,
-		TextColor3 = theme.text_color,
-		TextSize = 14,
-		ZIndex = 3
-	})
-
-	local closeButton = self:Create("TextButton", {
-		Name = "Close",
-		BackgroundTransparency = 1,
-		Position = UDim2.new(0, 60, 0, 0),
-		Size = UDim2.new(0, 30, 1, 0),
-		Text = "×",
-		Font = Enum.Font.GothamBold,
-		TextColor3 = theme.text_color,
-		TextSize = 14,
-		ZIndex = 3
-	})
-
-	-- Window Controls Events
-	minimizeButton.MouseButton1Click:Connect(self2.Minimize)
-	maximizeButton.MouseButton1Click:Connect(self2.Maximize)
-	closeButton.MouseButton1Click:Connect(self2.Close)
-
-	-- Window Dragging
-	self2.container.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 and input.Position.Y < 30 then
-			dragging = true
-			dragStart = input.Position
-			startPos = self2.container.Position
-		end
+	task.spawn(function()
+		task.wait(0.1) -- Small delay to ensure container is created
+		finity.gs["RunService"].RenderStepped:Connect(updateWindowFocus)
 	end)
 
-	self2.container.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = false
-		end
+	-- Load saved state after container is created
+	task.spawn(function()
+		task.wait(0.1) -- Small delay to ensure container is created
+		loadWindowState()
 	end)
-
-	self2.container.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement then
-			if dragging then
-				local delta = input.Position - dragStart
-				local newPosition = UDim2.new(
-					startPos.X.Scale,
-					startPos.X.Offset + delta.X,
-					startPos.Y.Scale,
-					startPos.Y.Offset + delta.Y
-				)
-				
-				local snapPosition = checkSnap(newPosition)
-				if snapPosition then
-					animateWindow("Position", snapPosition)
-				else
-					self2.container.Position = newPosition
-				end
-			end
-		end
-	end)
-
-	-- Window Resizing
-	local resizeHandle = self:Create("Frame", {
-		Name = "ResizeHandle",
-		BackgroundTransparency = 1,
-		Position = UDim2.new(1, -10, 1, -10),
-		Size = UDim2.new(0, 10, 0, 10),
-		ZIndex = 3
-	})
-
-	local resizing = false
-	local resizeStart
-	local startSize
-
-	resizeHandle.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			resizing = true
-			resizeStart = input.Position
-			startSize = self2.container.Size
-		end
-	end)
-
-	resizeHandle.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			resizing = false
-		end
-	end)
-
-	resizeHandle.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement then
-			if resizing then
-				local delta = input.Position - resizeStart
-				local newSize = UDim2.new(
-					startSize.X.Scale,
-					math.max(400, startSize.X.Offset + delta.X),
-					startSize.Y.Scale,
-					math.max(300, startSize.Y.Offset + delta.Y)
-				)
-				self2.container.Size = newSize
-			end
-		end
-	end)
-
-	-- Add controls to UI
-	controls.Parent = self2.container
-	minimizeButton.Parent = controls
-	maximizeButton.Parent = controls
-	closeButton.Parent = controls
-	resizeHandle.Parent = self2.container
-
-	self2.ChangeToggleKey = function(NewKey)
-		finityData.ToggleKey = NewKey
-		
-		if not projectName then
-			self2.tip.Text = "Press '".. string.sub(tostring(NewKey), 14) .."' to hide this menu"
-		end
-		
-		if finityData.UpConnection then
-			finityData.UpConnection:Disconnect()
-		end
-
-		finityData.UpConnection = finity.gs["UserInputService"].InputEnded:Connect(function(Input)
-			if Input.KeyCode == finityData.ToggleKey and not typing then
-                toggled = not toggled
-
-                pcall(function() self2.modal.Modal = toggled end)
-
-                if toggled then
-					pcall(self2.container.TweenPosition, self2.container, savedposition, "Out", "Sine", 0.5, true)
-                else
-                    savedposition = self2.container.Position;
-					pcall(self2.container.TweenPosition, self2.container, UDim2.new(savedposition.Width.Scale, savedposition.Width.Offset, 1.5, 0), "Out", "Sine", 0.5, true)
-				end
-			end
-		end)
-	end
-	
-	self2.ChangeBackgroundImage = function(ImageID, Transparency)
-		self2.container.Image = ImageID
-		
-		if Transparency then
-			self2.container.ImageTransparency = Transparency
-		else
-			self2.container.ImageTransparency = 0.8
-		end
-	end
-
-	finityData.UpConnection = finity.gs["UserInputService"].InputEnded:Connect(function(Input)
-		if Input.KeyCode == finityData.ToggleKey and not typing then
-			toggled = not toggled
-
-			if toggled then
-				self2.container:TweenPosition(UDim2.new(0.5, 0, 0.5, 0), "Out", "Sine", 0.5, true)
-			else
-				self2.container:TweenPosition(UDim2.new(0.5, 0, 1.5, 0), "Out", "Sine", 0.5, true)
-			end
-		end
-	end)
-
-	self2.userinterface = self:Create("ScreenGui", {
-		Name = "FinityUI",
-		ZIndexBehavior = Enum.ZIndexBehavior.Global,
-		ResetOnSpawn = false,
-	})
-
-	self2.container = self:Create("ImageLabel", {
-		Draggable = true,
-		Active = true,
-		Name = "Container",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		BackgroundTransparency = 0,
-		BackgroundColor3 = theme.main_container,
-		BorderSizePixel = 0,
-		Position = UDim2.new(0.5, 0, 0.5, 0),
-		Size = UDim2.new(0, 800, 0, 500),
-		ZIndex = 2,
-		ImageTransparency = 1
-    })
-    
-    self2.modal = self:Create("TextButton", {
-        Text = "";
-        Transparency = 1;
-        Modal = true;
-    }) self2.modal.Parent = self2.userinterface;
-	
-	if thinProject and typeof(thinProject) == "UDim2" then
-		self2.container.Size = thinProject
-	end
-
-	self2.container.Draggable = true
-	self2.container.Active = true
-
-	self2.sidebar = self:Create("Frame", {
-		Name = "Sidebar",
-		BackgroundColor3 = Color3.new(0.976471, 0.937255, 1),
-		BackgroundTransparency = 1,
-		BorderColor3 = Color3.new(0.745098, 0.713726, 0.760784),
-		Size = UDim2.new(0, 120, 1, -30),
-		Position = UDim2.new(0, 0, 0, 30),
-		ZIndex = 2,
-	})
-
-	self2.categories = self:Create("Frame", {
-		Name = "Categories",
-		BackgroundColor3 = Color3.new(0.976471, 0.937255, 1),
-		ClipsDescendants = true,
-		BackgroundTransparency = 1,
-		BorderColor3 = Color3.new(0.745098, 0.713726, 0.760784),
-		Size = UDim2.new(1, -120, 1, -30),
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, 0, 0, 30),
-		ZIndex = 2,
-	})
-	self2.categories.ClipsDescendants = true
-
-	self2.topbar = self:Create("Frame", {
-		Name = "Topbar",
-		ZIndex = 2,
-		Size = UDim2.new(1,0,0,30),
-		BackgroundTransparency = 2
-	})
-
-	self2.tip = self:Create("TextLabel", {
-		Name = "TopbarTip",
-		ZIndex = 2,
-		Size = UDim2.new(1, -30, 0, 30),
-		Position = UDim2.new(0, 30, 0, 0),
-		Text = "Press '".. string.sub(tostring(self.ToggleKey), 14) .."' to hide this menu",
-		Font = Enum.Font.GothamSemibold,
-		TextSize = 13,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		BackgroundTransparency = 1,
-		TextColor3 = theme.text_color,
-	})
-	
-	if projectName then
-		self2.tip.Text = projectName
-	else
-		self2.tip.Text = "Press '".. string.sub(tostring(self.ToggleKey), 14) .."' to hide this menu"
-	end
-    
-    function finity.settitle(text)
-        self2.tip.Text = tostring(text)
-    end
-
-	local separator = self:Create("Frame", {
-		Name = "Separator",
-		BackgroundColor3 = theme.separator_color,
-		BorderSizePixel = 0,
-		Position = UDim2.new(0, 118, 0, 30),
-		Size = UDim2.new(0, 1, 1, -30),
-		ZIndex = 6,
-	})
-	separator.Parent = self2.container
-	separator = nil
-
-	local separator = self:Create("Frame", {
-		Name = "Separator",
-		BackgroundColor3 = theme.separator_color,
-		BorderSizePixel = 0,
-		Position = UDim2.new(0, 0, 0, 30),
-		Size = UDim2.new(1, 0, 0, 1),
-		ZIndex = 6,
-	})
-	separator.Parent = self2.container
-	separator = nil
-
-	local uipagelayout = self:Create("UIPageLayout", {
-		Padding = UDim.new(0, 10),
-		FillDirection = Enum.FillDirection.Vertical,
-		TweenTime = 0.7,
-		EasingStyle = Enum.EasingStyle.Quad,
-		EasingDirection = Enum.EasingDirection.InOut,
-		SortOrder = Enum.SortOrder.LayoutOrder,
-	})
-	uipagelayout.Parent = self2.categories
-	uipagelayout = nil
-
-	local uipadding = self:Create("UIPadding", {
-		PaddingTop = UDim.new(0, 3),
-		PaddingLeft = UDim.new(0, 2)
-	})
-	uipadding.Parent = self2.sidebar
-	uipadding = nil
-
-	local uilistlayout = self:Create("UIListLayout", {
-		SortOrder = Enum.SortOrder.LayoutOrder
-	})
-	uilistlayout.Parent = self2.sidebar
-	uilistlayout = nil
-
-	-- Window Snapping
-	local snapThreshold = 10
-	local snapPositions = {
-		Left = UDim2.new(0, 0, 0.5, 0),
-		Right = UDim2.new(1, -800, 0.5, 0),
-		Top = UDim2.new(0.5, 0, 0, 0),
-		Bottom = UDim2.new(0.5, 0, 1, -500)
-	}
-
-	local function checkSnap(position)
-		local screenSize = workspace.CurrentCamera.ViewportSize
-		local windowSize = self2.container.AbsoluteSize
-		
-		-- Check left snap
-		if math.abs(position.X.Offset) < snapThreshold then
-			return snapPositions.Left
-		end
-		
-		-- Check right snap
-		if math.abs(screenSize.X - (position.X.Offset + windowSize.X)) < snapThreshold then
-			return snapPositions.Right
-		end
-		
-		-- Check top snap
-		if math.abs(position.Y.Offset) < snapThreshold then
-			return snapPositions.Top
-		end
-		
-		-- Check bottom snap
-		if math.abs(screenSize.Y - (position.Y.Offset + windowSize.Y)) < snapThreshold then
-			return snapPositions.Bottom
-		end
-		
-		return nil
-	end
-
-	-- Window Transparency Controls
-	local transparencyLevels = {
-		Normal = 0,
-		Hover = 0.1,
-		Inactive = 0.2
-	}
-
-	self2.SetTransparency = function(level)
-		if transparencyLevels[level] then
-			animateWindow("BackgroundTransparency", transparencyLevels[level])
-		end
-	end
-
-	-- Window Blur Effect
-	local blurEffect = Instance.new("BlurEffect")
-	blurEffect.Size = 0
-	blurEffect.Parent = workspace.CurrentCamera
-
-	self2.SetBlur = function(enabled, size)
-		size = size or 10
-		if enabled then
-			animateWindow("BackgroundTransparency", 0.5)
-			blurEffect.Size = size
-		else
-			animateWindow("BackgroundTransparency", 0)
-			blurEffect.Size = 0
-		end
-	end
 
 	-- Setup auto-save after all UI elements are created
-	setupAutoSave()
+	task.spawn(function()
+		task.wait(0.1) -- Small delay to ensure UI elements are created
+		setupAutoSave()
+	end)
 
-	self:addShadow(self2.container, 0)
+	-- Add the container to the UI
+	self2.container.Parent = self2.userinterface
 
-	self2.categories.ClipsDescendants = true
-	
 	if not finity.gs["RunService"]:IsStudio() then
 		self2.userinterface.Parent = self.gs["CoreGui"]
 	else
 		self2.userinterface.Parent = self.gs["Players"].LocalPlayer:WaitForChild("PlayerGui")
 	end
-	
+
 	self2.container.Parent = self2.userinterface
 	self2.categories.Parent = self2.container
 	self2.sidebar.Parent = self2.container
