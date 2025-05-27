@@ -326,13 +326,15 @@ function finity.new(isdark, gprojectName, thinProject)
 
 	-- Window Focus Management
 	local function updateWindowFocus()
-		windowFocused = self2.container:IsMouseOver()
-		if windowFocused ~= lastFocused then
-			lastFocused = windowFocused
-			if windowFocused then
-				animateWindow("BackgroundTransparency", 0)
-			else
-				animateWindow("BackgroundTransparency", 0.1)
+		if self2.container and typeof(self2.container) == "Instance" then
+			windowFocused = self2.container:IsMouseOver()
+			if windowFocused ~= lastFocused then
+				lastFocused = windowFocused
+				if windowFocused then
+					animateWindow("BackgroundTransparency", 0)
+				else
+					animateWindow("BackgroundTransparency", 0.1)
+				end
 			end
 		end
 	end
