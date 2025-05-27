@@ -73,6 +73,108 @@ finity.dark_theme = { -- dark
 	scrollbar_color = Color3.fromRGB(118, 118, 121),
 }
 
+-- Add new functionality for theme management
+finity.ThemeManager = {
+	SetLibrary = function(self, library)
+		self.library = library
+	end,
+	
+	SetFolder = function(self, folder)
+		self.folder = folder
+	end,
+	
+	ApplyToTab = function(self, tab)
+		-- Apply theme to tab
+	end,
+	
+	ApplyToGroupbox = function(self, groupbox)
+		-- Apply theme to groupbox
+	end
+}
+
+-- Add new functionality for save management
+finity.SaveManager = {
+	SetLibrary = function(self, library)
+		self.library = library
+	end,
+	
+	SetFolder = function(self, folder)
+		self.folder = folder
+	end,
+	
+	IgnoreThemeSettings = function(self)
+		-- Ignore theme settings
+	end,
+	
+	SetIgnoreIndexes = function(self, indexes)
+		self.ignoreIndexes = indexes
+	end,
+	
+	BuildConfigSection = function(self, tab)
+		-- Build config section
+	end,
+	
+	LoadAutoloadConfig = function(self)
+		-- Load autoload config
+	end
+}
+
+-- Add new functionality for window creation
+function finity:CreateWindow(options)
+	local window = {
+		Title = options.Title or "Finity UI",
+		Center = options.Center or false,
+		AutoShow = options.AutoShow or false,
+		TabPadding = options.TabPadding or 8,
+		MenuFadeTime = options.MenuFadeTime or 0.2
+	}
+	
+	-- Add tab creation functionality
+	function window:AddTab(name)
+		return {
+			AddLeftGroupbox = function(self, title)
+				return {
+					AddLabel = function(self, text)
+						-- Add label functionality
+					end,
+					AddToggle = function(self, name, options)
+						-- Add toggle functionality
+					end,
+					AddSlider = function(self, name, options)
+						-- Add slider functionality
+					end,
+					AddButton = function(self, options)
+						-- Add button functionality
+					end,
+					AddDivider = function(self)
+						-- Add divider functionality
+					end
+				}
+			end,
+			AddRightGroupbox = function(self, title)
+				-- Same as AddLeftGroupbox
+			end
+		}
+	end
+	
+	return window
+end
+
+-- Add notification system
+function finity:Notify(message, duration)
+	-- Notification functionality
+end
+
+-- Add keybind system
+function finity:AddKeyPicker(name, options)
+	-- Keybind functionality
+end
+
+-- Add unload functionality
+function finity:Unload()
+	-- Unload functionality
+end
+
 setmetatable(finity.gs, {
 	__index = function(_, service)
 		return game:GetService(service)
@@ -120,15 +222,9 @@ function finity.new(isdark, gprojectName, thinProject)
 	local self2 = finityObject
 	local self = finity
 
-	-- Configuration Management
-	local configs = {}
-	local currentConfig = "default"
-	local autoSave = true
-	local configFolder = "FinityConfigs"
-	
-	-- Create config folder if it doesn't exist
-	if not isfolder(configFolder) then
-		makefolder(configFolder)
+	if not finity.gs["RunService"]:IsStudio() and self.gs["CoreGui"]:FindFirstChild("FinityUI") then
+
+		self.gs["CoreGui"]:FindFirstChild("FinityUI"):Destroy()
 	end
 
 	local theme = finity.theme
@@ -143,27 +239,63 @@ function finity.new(isdark, gprojectName, thinProject)
 	local typing = false
 	local firstCategory = true
     local savedposition = UDim2.new(0.5, 0, 0.5, 0)
-    local minimized = false
-    local maximized = false
-    local originalSize = UDim2.new(0, 800, 0, 500)
-    local originalPosition = UDim2.new(0.5, 0, 0.5, 0)
-    local dragging = false
-    local dragStart
-    local startPos
+    
 
 	local finityData
 	finityData = {
 		UpConnection = nil,
 		ToggleKey = Enum.KeyCode.Home,
-		Minimized = false,
-		Maximized = false,
-		Dragging = false,
-		Resizing = false,
-		OriginalSize = originalSize,
-		OriginalPosition = originalPosition
 	}
 
-	-- Create UI elements first
+	self2.ChangeToggleKey = function(NewKey)
+		finityData.ToggleKey = NewKey
+		
+		if not projectName then
+			self2.tip.Text = "Press '".. string.sub(tostring(NewKey), 14) .."' to hide this menu"
+		end
+		
+		if finityData.UpConnection then
+			finityData.UpConnection:Disconnect()
+		end
+
+		finityData.UpConnection = finity.gs["UserInputService"].InputEnded:Connect(function(Input)
+			if Input.KeyCode == finityData.ToggleKey and not typing then
+                toggled = not toggled
+
+                pcall(function() self2.modal.Modal = toggled end)
+
+                if toggled then
+					pcall(self2.container.TweenPosition, self2.container, savedposition, "Out", "Sine", 0.5, true)
+                else
+                    savedposition = self2.container.Position;
+					pcall(self2.container.TweenPosition, self2.container, UDim2.new(savedposition.Width.Scale, savedposition.Width.Offset, 1.5, 0), "Out", "Sine", 0.5, true)
+				end
+			end
+		end)
+	end
+	
+	self2.ChangeBackgroundImage = function(ImageID, Transparency)
+		self2.container.Image = ImageID
+		
+		if Transparency then
+			self2.container.ImageTransparency = Transparency
+		else
+			self2.container.ImageTransparency = 0.8
+		end
+	end
+
+	finityData.UpConnection = finity.gs["UserInputService"].InputEnded:Connect(function(Input)
+		if Input.KeyCode == finityData.ToggleKey and not typing then
+			toggled = not toggled
+
+			if toggled then
+				self2.container:TweenPosition(UDim2.new(0.5, 0, 0.5, 0), "Out", "Sine", 0.5, true)
+			else
+				self2.container:TweenPosition(UDim2.new(0.5, 0, 1.5, 0), "Out", "Sine", 0.5, true)
+			end
+		end
+	end)
+
 	self2.userinterface = self:Create("ScreenGui", {
 		Name = "FinityUI",
 		ZIndexBehavior = Enum.ZIndexBehavior.Global,
@@ -188,86 +320,15 @@ function finity.new(isdark, gprojectName, thinProject)
         Text = "";
         Transparency = 1;
         Modal = true;
-    })
-    self2.modal.Parent = self2.userinterface
-
-	-- Add the container to the UI
-	self2.container.Parent = self2.userinterface
-
-	if not finity.gs["RunService"]:IsStudio() then
-		self2.userinterface.Parent = self.gs["CoreGui"]
-	else
-		self2.userinterface.Parent = self.gs["Players"].LocalPlayer:WaitForChild("PlayerGui")
-	end
-
-	-- Window State Management
-	local windowStates = {
-		Normal = "Normal",
-		Minimized = "Minimized",
-		Maximized = "Maximized"
-	}
+    }) self2.modal.Parent = self2.userinterface;
 	
-	local currentState = windowStates.Normal
-	local windowFocused = true
-	local lastFocused = true
-	local animationSpeed = 0.3
-	local animationStyle = Enum.EasingStyle.Sine
-	local animationDirection = Enum.EasingDirection.Out
-
-	-- Window Animation Functions
-	local function animateWindow(property, targetValue, duration)
-		if not self2.container or typeof(self2.container) ~= "Instance" then return end
-		duration = duration or animationSpeed
-		local tweenInfo = TweenInfo.new(duration, animationStyle, animationDirection)
-		local tween = finity.gs["TweenService"]:Create(self2.container, tweenInfo, {[property] = targetValue})
-		tween:Play()
-		return tween
+	if thinProject and typeof(thinProject) == "UDim2" then
+		self2.container.Size = thinProject
 	end
 
-	-- Window Focus Management
-	local function updateWindowFocus()
-		if not self2.container or typeof(self2.container) ~= "Instance" then return end
-		local success, result = pcall(function()
-			return self2.container:IsMouseOver()
-		end)
-		if not success then return end
-		
-		windowFocused = result
-		if windowFocused ~= lastFocused then
-			lastFocused = windowFocused
-			if windowFocused then
-				animateWindow("BackgroundTransparency", 0)
-			else
-				animateWindow("BackgroundTransparency", 0.1)
-			end
-		end
-	end
+	self2.container.Draggable = true
+	self2.container.Active = true
 
-	-- Add focus update to RunService
-	task.spawn(function()
-		task.wait(0.1) -- Small delay to ensure container is created
-		if self2.container and typeof(self2.container) == "Instance" then
-			finity.gs["RunService"].RenderStepped:Connect(updateWindowFocus)
-		end
-	end)
-
-	-- Setup auto-save after all UI elements are created
-	task.spawn(function()
-		task.wait(0.1) -- Small delay to ensure UI elements are created
-		if self2.container and typeof(self2.container) == "Instance" then
-			finity.setupAutoSave()
-		end
-	end)
-
-	-- Load saved state after container is created
-	task.spawn(function()
-		task.wait(0.1) -- Small delay to ensure container is created
-		if self2.container and typeof(self2.container) == "Instance" then
-			finity.loadConfig(currentConfig)
-		end
-	end)
-
-	-- Add the rest of the UI elements
 	self2.sidebar = self:Create("Frame", {
 		Name = "Sidebar",
 		BackgroundColor3 = Color3.new(0.976471, 0.937255, 1),
@@ -316,659 +377,1222 @@ function finity.new(isdark, gprojectName, thinProject)
 	else
 		self2.tip.Text = "Press '".. string.sub(tostring(self.ToggleKey), 14) .."' to hide this menu"
 	end
+    
+    function finity.settitle(text)
+        self2.tip.Text = tostring(text)
+    end
 
-	-- Add UI elements to container
+	local separator = self:Create("Frame", {
+		Name = "Separator",
+		BackgroundColor3 = theme.separator_color,
+		BorderSizePixel = 0,
+		Position = UDim2.new(0, 118, 0, 30),
+		Size = UDim2.new(0, 1, 1, -30),
+		ZIndex = 6,
+	})
+	separator.Parent = self2.container
+	separator = nil
+
+	local separator = self:Create("Frame", {
+		Name = "Separator",
+		BackgroundColor3 = theme.separator_color,
+		BorderSizePixel = 0,
+		Position = UDim2.new(0, 0, 0, 30),
+		Size = UDim2.new(1, 0, 0, 1),
+		ZIndex = 6,
+	})
+	separator.Parent = self2.container
+	separator = nil
+
+	local uipagelayout = self:Create("UIPageLayout", {
+		Padding = UDim.new(0, 10),
+		FillDirection = Enum.FillDirection.Vertical,
+		TweenTime = 0.7,
+		EasingStyle = Enum.EasingStyle.Quad,
+		EasingDirection = Enum.EasingDirection.InOut,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+	})
+	uipagelayout.Parent = self2.categories
+	uipagelayout = nil
+
+	local uipadding = self:Create("UIPadding", {
+		PaddingTop = UDim.new(0, 3),
+		PaddingLeft = UDim.new(0, 2)
+	})
+	uipadding.Parent = self2.sidebar
+	uipadding = nil
+
+	local uilistlayout = self:Create("UIListLayout", {
+		SortOrder = Enum.SortOrder.LayoutOrder
+	})
+	uilistlayout.Parent = self2.sidebar
+	uilistlayout = nil
+
+	function self2:Category(name)
+		local category = {}
+		
+		category.button = finity:Create("TextButton", {
+			Name = name,
+			BackgroundColor3 = theme.category_button_background,
+			BackgroundTransparency = 1,
+			BorderMode = Enum.BorderMode.Inset,
+			BorderColor3 = theme.category_button_border,
+			Size = UDim2.new(1, -4, 0, 25),
+			ZIndex = 2,
+			AutoButtonColor = false,
+			Font = Enum.Font.GothamSemibold,
+			Text = name,
+			TextColor3 = theme.text_color,
+			TextSize = 14
+		})
+
+		category.container = finity:Create("ScrollingFrame", {
+			Name = name,
+			BackgroundTransparency = 1,
+			ScrollBarThickness = 4,
+			BorderSizePixel = 0,
+			Size = UDim2.new(1, 0, 1, 0),
+			ZIndex = 2,
+			CanvasSize = UDim2.new(0, 0, 0, 0),
+			ScrollBarImageColor3 = theme.scrollbar_color or Color3.fromRGB(118, 118, 121),
+			BottomImage = "rbxassetid://967852042",
+			MidImage = "rbxassetid://967852042",
+			TopImage = "rbxassetid://967852042",
+			ScrollBarImageTransparency = 1 --
+		})
+
+		category.hider = finity:Create("Frame", {
+			Name = "Hider",
+			BackgroundTransparency = 0, --
+			BorderSizePixel = 0,
+			BackgroundColor3 = theme.main_container,
+			Size = UDim2.new(1, 0, 1, 0),
+			ZIndex = 5
+		})
+
+		category.L = finity:Create("Frame", {
+			Name = "L",
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			BackgroundTransparency = 1,
+			Position = UDim2.new(0, 10, 0, 3),
+			Size = UDim2.new(0.5, -20, 1, -3),
+			ZIndex = 2
+		})
+		
+		if not thinProject then
+			category.R = finity:Create("Frame", {
+				Name = "R",
+				AnchorPoint = Vector2.new(1, 0),
+				BackgroundColor3 = Color3.new(1, 1, 1),
+				BackgroundTransparency = 1,
+				Position = UDim2.new(1, -10, 0, 3),
+				Size = UDim2.new(0.5, -20, 1, -3),
+				ZIndex = 2
+			})
+		end
+		
+		if thinProject then
+			category.L.Size = UDim2.new(1, -20, 1, -3)
+		end
+		
+		if firstCategory then
+			finity.gs["TweenService"]:Create(category.hider, TweenInfo.new(0.3), {BackgroundTransparency = 1}):Play()
+			finity.gs["TweenService"]:Create(category.container, TweenInfo.new(0.3), {ScrollBarImageTransparency = 0}):Play()
+		end
+		
+		do
+			local uilistlayout = finity:Create("UIListLayout", {
+				SortOrder = Enum.SortOrder.LayoutOrder
+			})
+	
+			local uilistlayout2 = finity:Create("UIListLayout", {
+				SortOrder = Enum.SortOrder.LayoutOrder
+			})
+			
+			local function computeSizeChange()
+				local largestListSize = 0
+				
+				largestListSize = uilistlayout.AbsoluteContentSize.Y
+				
+				if uilistlayout2.AbsoluteContentSize.Y > largestListSize then
+					largestListSize = largestListSize
+				end
+				
+				category.container.CanvasSize = UDim2.new(0, 0, 0, largestListSize + 5)
+			end
+			
+			uilistlayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(computeSizeChange)
+			uilistlayout2:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(computeSizeChange)
+			
+			uilistlayout.Parent = category.L
+			uilistlayout2.Parent = category.R
+		end
+		
+		category.button.MouseEnter:Connect(function()
+			finity.gs["TweenService"]:Create(category.button, TweenInfo.new(0.2), {BackgroundTransparency = 0.5}):Play()
+		end)
+		category.button.MouseLeave:Connect(function()
+			finity.gs["TweenService"]:Create(category.button, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play()
+		end)
+		category.button.MouseButton1Down:Connect(function()
+			for _, categoryf in next, self2.userinterface["Container"]["Categories"]:GetChildren() do
+				if categoryf:IsA("ScrollingFrame") then
+					if categoryf ~= category.container then
+						finity.gs["TweenService"]:Create(categoryf.Hider, TweenInfo.new(0.3), {BackgroundTransparency = 0}):Play()
+						finity.gs["TweenService"]:Create(categoryf, TweenInfo.new(0.3), {ScrollBarImageTransparency = 1}):Play()
+					end
+				end
+			end
+
+			finity.gs["TweenService"]:Create(category.button, TweenInfo.new(0.2), {BackgroundTransparency = 0.2}):Play()
+			finity.gs["TweenService"]:Create(category.hider, TweenInfo.new(0.3), {BackgroundTransparency = 1}):Play()
+			finity.gs["TweenService"]:Create(category.container, TweenInfo.new(0.3), {ScrollBarImageTransparency = 0}):Play()
+
+			self2.categories["UIPageLayout"]:JumpTo(category.container)
+		end)
+		category.button.MouseButton1Up:Connect(function()
+			finity.gs["TweenService"]:Create(category.button, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play()
+		end)
+
+		category.container.Parent = self2.categories
+		category.button.Parent = self2.sidebar
+		
+		if not thinProject then
+			category.R.Parent = category.container
+		end
+		
+		category.L.Parent = category.container
+		category.hider.Parent = category.container
+
+		local function calculateSector()
+			if thinProject then
+				return "L"
+			end
+			
+			local R = #category.R:GetChildren() - 1
+			local L = #category.L:GetChildren() - 1
+
+			if L > R then
+				return "R"
+			else
+				return "L"
+                end
+            end
+
+		function category:Sector(name)
+			local sector = {}
+
+			sector.frame = finity:Create("Frame", {
+				Name = name,
+				BackgroundColor3 = Color3.new(1, 1, 1),
+				BackgroundTransparency = 1,
+				Size = UDim2.new(1, 0, 0, 25),
+				ZIndex = 2
+			})
+
+			sector.container = finity:Create("Frame", {
+				Name = "Container",
+				BackgroundColor3 = Color3.new(1, 1, 1),
+				BackgroundTransparency = 1,
+				Position = UDim2.new(0, 0, 0, 22),
+				Size = UDim2.new(1, -5, 1, -30),
+				ZIndex = 2
+			})
+
+			sector.title = finity:Create("TextLabel", {
+				Name = "Title",
+				Text = name,
+				BackgroundColor3 = Color3.new(1, 1, 1),
+				BackgroundTransparency = 1,
+				Size = UDim2.new(1, -5, 0, 25),
+				ZIndex = 2,
+				Font = Enum.Font.GothamSemibold,
+				TextColor3 = theme.text_color,
+				TextSize = 14,
+				TextXAlignment = Enum.TextXAlignment.Left,
+			})
+
+			local uilistlayout = finity:Create("UIListLayout", {
+				SortOrder = Enum.SortOrder.LayoutOrder
+			})
+
+            uilistlayout.Changed:Connect(function()
+                pcall(function()
+                    sector.frame.Size = UDim2.new(1, 0, 0, sector.container["UIListLayout"].AbsoluteContentSize.Y + 25)
+                    sector.container.Size = UDim2.new(1, 0, 0, sector.container["UIListLayout"].AbsoluteContentSize.Y)
+                end)
+			end)
+			uilistlayout.Parent = sector.container
+			uilistlayout = nil
+
+			function sector:Cheat(kind, name, callback, data)
+				local cheat = {}
+				cheat.value = nil
+
+				cheat.frame = finity:Create("Frame", {
+					Name = name,
+					BackgroundColor3 = Color3.new(1, 1, 1),
+					BackgroundTransparency = 1,
+					Size = UDim2.new(1, 0, 0, 25),
+					ZIndex = 2,
+				})
+
+				cheat.label = finity:Create("TextLabel", {
+					Name = "Title",
+					BackgroundColor3 = Color3.new(1, 1, 1),
+					BackgroundTransparency = 1,
+					Size = UDim2.new(1, 0, 1, 0),
+					ZIndex = 2,
+					Font = Enum.Font.Gotham,
+					TextColor3 = theme.text_color,
+					TextSize = 13,
+					Text = name,
+					TextXAlignment = Enum.TextXAlignment.Left
+				})
+
+				cheat.container	= finity:Create("Frame", {
+					Name = "Container",
+					AnchorPoint = Vector2.new(1, 0.5),
+					BackgroundColor3 = Color3.new(1, 1, 1),
+					BackgroundTransparency = 1,
+					Position = UDim2.new(1, 0, 0.5, 0),
+					Size = UDim2.new(0, 150, 0, 22),
+					ZIndex = 2,
+				})
+				
+				if kind then
+					if string.lower(kind) == "checkbox" or string.lower(kind) == "toggle" then
+						if data then
+							if data.enabled then
+								cheat.value = true
+							end
+						end
+
+						cheat.checkbox = finity:Create("Frame", {
+							Name = "Checkbox",
+							AnchorPoint = Vector2.new(1, 0),
+							BackgroundColor3 = Color3.new(1, 1, 1),
+							BackgroundTransparency = 1,
+							Position = UDim2.new(1, 0, 0, 0),
+							Size = UDim2.new(0, 25, 0, 25),
+							ZIndex = 2,
+						})
+
+						cheat.outerbox = finity:Create("ImageLabel", {
+							Name = "Outer",
+							AnchorPoint = Vector2.new(1, 0.5),
+							BackgroundColor3 = Color3.new(1, 1, 1),
+							BackgroundTransparency = 1,
+							Position = UDim2.new(1, 0, 0.5, 0),
+							Size = UDim2.new(0, 20, 0, 20),
+							ZIndex = 2,
+							Image = "rbxassetid://3570695787",
+							ImageColor3 = theme.checkbox_outer,
+							ScaleType = Enum.ScaleType.Slice,
+							SliceCenter = Rect.new(100, 100, 100, 100),
+							SliceScale = 0.06,
+						})
+
+						cheat.checkboxbutton = finity:Create("ImageButton", {
+							AnchorPoint = Vector2.new(0.5, 0.5),
+							Name = "CheckboxButton",
+							BackgroundColor3 = Color3.new(1, 1, 1),
+							BackgroundTransparency = 1,
+							Position = UDim2.new(0.5, 0, 0.5, 0),
+							Size = UDim2.new(0, 14, 0, 14),
+							ZIndex = 2,
+							Image = "rbxassetid://3570695787",
+							ImageColor3 = theme.checkbox_inner,
+							ScaleType = Enum.ScaleType.Slice,
+							SliceCenter = Rect.new(100, 100, 100, 100),
+							SliceScale = 0.04
+						})
+
+						if data then
+							if data.enabled then
+								finity.gs["TweenService"]:Create(cheat.outerbox, TweenInfo.new(0.2), {ImageColor3 = theme.checkbox_checked}):Play()
+								finity.gs["TweenService"]:Create(cheat.checkboxbutton, TweenInfo.new(0.2), {ImageColor3 = theme.checkbox_checked}):Play()
+							end
+						end
+
+						cheat.checkboxbutton.MouseEnter:Connect(function()
+							local lightertheme = Color3.fromRGB((theme.checkbox_outer.R * 255) + 20, (theme.checkbox_outer.G * 255) + 20, (theme.checkbox_outer.B * 255) + 20)
+							finity.gs["TweenService"]:Create(cheat.outerbox, TweenInfo.new(0.2), {ImageColor3 = lightertheme}):Play()
+						end)
+						cheat.checkboxbutton.MouseLeave:Connect(function()
+							if not cheat.value then
+								finity.gs["TweenService"]:Create(cheat.outerbox, TweenInfo.new(0.2), {ImageColor3 = theme.checkbox_outer}):Play()
+							else
+								finity.gs["TweenService"]:Create(cheat.outerbox, TweenInfo.new(0.2), {ImageColor3 = theme.checkbox_checked}):Play()
+							end
+						end)
+						cheat.checkboxbutton.MouseButton1Down:Connect(function()
+							if cheat.value then
+								finity.gs["TweenService"]:Create(cheat.checkboxbutton, TweenInfo.new(0.2), {ImageColor3 = theme.checkbox_outer}):Play()
+							else
+								finity.gs["TweenService"]:Create(cheat.checkboxbutton, TweenInfo.new(0.2), {ImageColor3 = theme.checkbox_checked}):Play()
+							end
+						end)
+						cheat.checkboxbutton.MouseButton1Up:Connect(function()
+							cheat.value = not cheat.value
+
+							if callback then
+								local s, e = pcall(function()
+									callback(cheat.value)
+								end)
+
+								if not s then warn("error: ".. e) end
+							end
+
+							if cheat.value then
+								finity.gs["TweenService"]:Create(cheat.outerbox, TweenInfo.new(0.2), {ImageColor3 = theme.checkbox_checked}):Play()
+							else
+								finity.gs["TweenService"]:Create(cheat.outerbox, TweenInfo.new(0.2), {ImageColor3 = theme.checkbox_outer}):Play()
+								finity.gs["TweenService"]:Create(cheat.checkboxbutton, TweenInfo.new(0.2), {ImageColor3 = theme.checkbox_inner}):Play()
+							end
+						end)
+
+						cheat.checkboxbutton.Parent = cheat.outerbox
+                        cheat.outerbox.Parent = cheat.container
+                    elseif string.lower(kind) == "color" or string.lower(kind) == "colorpicker" then
+                        cheat.value = Color3.new(1, 1, 1);
+
+						if data then
+							if data.color then
+								cheat.value = data.color
+							end
+                        end
+                        
+                        local hsvimage = "rbxassetid://4613607014"
+                        local lumienceimage = "rbxassetid://4613627894"
+                        
+                        cheat.hsvbar = finity:Create("ImageButton", {
+							AnchorPoint = Vector2.new(0.5, 0.5),
+							Name = "HSVBar",
+							BackgroundColor3 = Color3.new(1, 1, 1),
+							BackgroundTransparency = 1,
+							Position = UDim2.new(0.5, 0, 0.5, 0),
+							Size = UDim2.new(1, 0, 0, 6),
+							ZIndex = 2,
+                            Image = hsvimage
+                        })
+
+                        cheat.arrowpreview = finity:Create("ImageLabel", {
+                            Name = "ArrowPreview",
+                            BackgroundColor3 = Color3.new(1, 1, 1),
+                            BackgroundTransparency = 1,
+                            ImageTransparency = 0.25,
+                            Position = UDim2.new(0.5, 0, 0.5, -6),
+                            Size = UDim2.new(0, 6, 0, 6),
+                            ZIndex = 3,
+                            Image = "rbxassetid://2500573769",
+                            Rotation = -90
+                        })
+                        
+                        cheat.hsvbar.MouseButton1Down:Connect(function()
+                            local rs = finity.gs["RunService"]
+                            local uis = finity.gs["UserInputService"]local last = cheat.value;
+
+                            cheat.hsvbar.Image = hsvimage
+
+                            while uis:IsMouseButtonPressed'MouseButton1' do
+                                local mouseloc = uis:GetMouseLocation()
+                                local sx = cheat.arrowpreview.AbsoluteSize.X / 2;
+                                local offset = (mouseloc.x - cheat.hsvbar.AbsolutePosition.X) - sx
+                                local scale = offset / cheat.hsvbar.AbsoluteSize.X
+                                local position = math.clamp(offset, -sx, cheat.hsvbar.AbsoluteSize.X - sx) / cheat.hsvbar.AbsoluteSize.X
+
+                                finity.gs["TweenService"]:Create(cheat.arrowpreview, TweenInfo.new(0.1), {Position = UDim2.new(position, 0, 0.5, -6)}):Play()
+                                
+                                cheat.value = Color3.fromHSV(math.clamp(scale, 0, 1), 1, 1)
+
+                                if cheat.value ~= last then
+                                    last = cheat.value
+                                    
+                                    if callback then
+                                        local s, e = pcall(function()
+                                            callback(cheat.value)
+                                        end)
+        
+                                        if not s then warn("error: ".. e) end
+                                    end
+                                end
+
+                                rs.RenderStepped:wait()
+                            end
+                        end)
+                        cheat.hsvbar.MouseButton2Down:Connect(function()
+                            local rs = finity.gs["RunService"]
+                            local uis = finity.gs["UserInputService"]
+                            local last = cheat.value;
+
+                            cheat.hsvbar.Image = lumienceimage
+
+                            while uis:IsMouseButtonPressed'MouseButton2' do
+                                local mouseloc = uis:GetMouseLocation()
+                                local sx = cheat.arrowpreview.AbsoluteSize.X / 2
+                                local offset = (mouseloc.x - cheat.hsvbar.AbsolutePosition.X) - sx
+                                local scale = offset / cheat.hsvbar.AbsoluteSize.X
+                                local position = math.clamp(offset, -sx, cheat.hsvbar.AbsoluteSize.X - sx) / cheat.hsvbar.AbsoluteSize.X
+
+                                finity.gs["TweenService"]:Create(cheat.arrowpreview, TweenInfo.new(0.1), {Position = UDim2.new(position, 0, 0.5, -6)}):Play()
+                                
+                                cheat.value = Color3.fromHSV(1, 0, 1 - math.clamp(scale, 0, 1))
+
+                                if cheat.value ~= last then
+                                    last = cheat.value
+
+                                    if callback then
+                                        local s, e = pcall(function()
+                                            callback(cheat.value)
+                                        end)
+        
+                                        if not s then warn("error: ".. e) end
+                                    end
+                                end
+
+                                rs.RenderStepped:wait()
+                            end
+                        end)
+
+                        function cheat:SetValue(value)
+                            cheat.value = value
+                            if cheat.value then
+                                finity.gs["TweenService"]:Create(cheat.outerbox, TweenInfo.new(0.2), {ImageColor3 = theme.checkbox_checked}):Play()
+								finity.gs["TweenService"]:Create(cheat.checkboxbutton, TweenInfo.new(0.2), {ImageColor3 = theme.checkbox_checked}):Play()
+                            else
+                                finity.gs["TweenService"]:Create(cheat.outerbox, TweenInfo.new(0.2), {ImageColor3 = theme.checkbox_outer}):Play()
+								finity.gs["TweenService"]:Create(cheat.checkboxbutton, TweenInfo.new(0.2), {ImageColor3 = theme.checkbox_inner}):Play()
+                            end
+                            if callback then
+                                local s, e = pcall(function()
+                                    callback(cheat.value)
+                                end)
+                                if not s then 
+                                    warn("error: "..e) 
+                                end
+                            end
+                        end
+
+						cheat.hsvbar.Parent = cheat.container
+						cheat.arrowpreview.Parent = cheat.hsvbar
+					elseif string.lower(kind) == "dropdown" then
+						if data then
+							if data.default then
+								cheat.value = data.default
+							elseif data.options then
+								cheat.value = data.options[1]
+							else
+								cheat.value = "None"
+							end
+						end
+						
+						local options
+						
+						if data and data.options then
+							options = data.options
+						end
+
+						cheat.dropped = false
+
+						cheat.dropdown = finity:Create("ImageButton", {
+							Name = "Dropdown",
+							BackgroundColor3 = Color3.new(1, 1, 1),
+							BackgroundTransparency = 1,
+							Size = UDim2.new(1, 0, 1, 0),
+							ZIndex = 2,
+							Image = "rbxassetid://3570695787",
+							ImageColor3 = theme.dropdown_background,
+							ImageTransparency = 0.5,
+							ScaleType = Enum.ScaleType.Slice,
+							SliceCenter = Rect.new(100, 100, 100, 100),
+							SliceScale = 0.02
+						})
+
+						cheat.selected = finity:Create("TextLabel", {
+							Name = "Selected",
+							BackgroundColor3 = Color3.new(1, 1, 1),
+							BackgroundTransparency = 1,
+							Position = UDim2.new(0, 10, 0, 0),
+							Size = UDim2.new(1, -35, 1, 0),
+							ZIndex = 2,
+							Font = Enum.Font.Gotham,
+							Text = tostring(cheat.value),
+							TextColor3 = theme.dropdown_text,
+							TextSize = 13,
+							TextXAlignment = Enum.TextXAlignment.Left
+						})
+
+						cheat.list = finity:Create("ScrollingFrame", {
+							Name = "List",
+							BackgroundColor3 = theme.dropdown_background,
+							BackgroundTransparency = 0.5,
+							BorderSizePixel = 0,
+							Position = UDim2.new(0, 0, 1, 0),
+							Size = UDim2.new(1, 0, 0, 100),
+							ZIndex = 3,
+							BottomImage = "rbxassetid://967852042",
+							MidImage = "rbxassetid://967852042",
+							TopImage = "rbxassetid://967852042",
+							ScrollBarThickness = 4,
+							VerticalScrollBarInset = Enum.ScrollBarInset.None,
+							ScrollBarImageColor3 = theme.dropdown_scrollbar_color
+						})
+
+						local uilistlayout = finity:Create("UIListLayout", {
+							SortOrder = Enum.SortOrder.LayoutOrder,
+							Padding = UDim.new(0, 2)
+						})
+						uilistlayout.Parent = cheat.list
+						uilistlayout = nil
+						local uipadding = finity:Create("UIPadding", {
+							PaddingLeft = UDim.new(0, 2)
+						})
+						uipadding.Parent = cheat.list
+						uipadding = nil
+						
+						local function refreshOptions()
+							if cheat.dropped then
+								cheat.fadelist()
+							end	
+							
+							for _, child in next, cheat.list:GetChildren() do
+								if child:IsA("TextButton") then
+									child:Destroy()
+								end
+							end
+							
+							for _, value in next, options do
+								local button = finity:Create("TextButton", {
+									BackgroundColor3 = Color3.new(1, 1, 1),
+									BackgroundTransparency = 1,
+									Size = UDim2.new(1, 0, 0, 20),
+									ZIndex = 3,
+									Font = Enum.Font.Gotham,
+									Text = value,
+									TextColor3 = theme.dropdown_text,
+									TextSize = 13
+								})
+	
+								button.Parent = cheat.list
+	
+								button.MouseEnter:Connect(function()
+									finity.gs["TweenService"]:Create(button, TweenInfo.new(0.1), {TextColor3 = theme.dropdown_text_hover}):Play()
+								end)
+								button.MouseLeave:Connect(function()
+									finity.gs["TweenService"]:Create(button, TweenInfo.new(0.1), {TextColor3 = theme.dropdown_text}):Play()
+								end)
+								button.MouseButton1Click:Connect(function()
+									if cheat.dropped then
+										cheat.value = value
+										cheat.selected.Text = value
+	
+										cheat.fadelist()
+										
+										if callback then
+											local s, e = pcall(function()
+												callback(cheat.value)
+											end)
+	
+											if not s then warn("error: ".. e) end
+										end
+                    end
+                end)
+								
+								
+								finity.gs["TweenService"]:Create(button, TweenInfo.new(0), {TextTransparency = 1}):Play()
+							end
+							
+							finity.gs["TweenService"]:Create(cheat.list, TweenInfo.new(0), {Size = UDim2.new(1, 0, 0, 0), Position = UDim2.new(0, 0, 1, 0), CanvasSize = UDim2.new(0, 0, 0, cheat.list["UIListLayout"].AbsoluteContentSize.Y), ScrollBarImageTransparency = 1, BackgroundTransparency = 1}):Play()
+						end
+						
+						
+						function cheat.fadelist()
+							cheat.dropped = not cheat.dropped
+
+							if cheat.dropped then
+								for _, button in next, cheat.list:GetChildren() do
+									if button:IsA("TextButton") then
+										finity.gs["TweenService"]:Create(button, TweenInfo.new(0.2), {TextTransparency = 0}):Play()
+									end
+								end
+
+								finity.gs["TweenService"]:Create(cheat.list, TweenInfo.new(0.2), {Size = UDim2.new(1, 0, 0, math.clamp(cheat.list["UIListLayout"].AbsoluteContentSize.Y, 0, 150)), Position = UDim2.new(0, 0, 1, 0), ScrollBarImageTransparency = 0, BackgroundTransparency = 0.5}):Play()
+							else
+								for _, button in next, cheat.list:GetChildren() do
+									if button:IsA("TextButton") then
+										finity.gs["TweenService"]:Create(button, TweenInfo.new(0.2), {TextTransparency = 1}):Play()
+									end
+								end
+
+								finity.gs["TweenService"]:Create(cheat.list, TweenInfo.new(0.2), {Size = UDim2.new(1, 0, 0, 0), Position = UDim2.new(0, 0, 1, 0), ScrollBarImageTransparency = 1, BackgroundTransparency = 1}):Play()
+							end
+						end
+
+						cheat.dropdown.MouseEnter:Connect(function()
+							finity.gs["TweenService"]:Create(cheat.selected, TweenInfo.new(0.1), {TextColor3 = theme.dropdown_text_hover}):Play()
+						end)
+						cheat.dropdown.MouseLeave:Connect(function()
+							finity.gs["TweenService"]:Create(cheat.selected, TweenInfo.new(0.1), {TextColor3 = theme.dropdown_text}):Play()
+						end)
+						cheat.dropdown.MouseButton1Click:Connect(function()
+							cheat.fadelist()
+						end)
+
+						refreshOptions()
+						
+						function cheat:RemoveOption(value)
+							local removed = false
+							for index, option in next, options do
+								if option == value then
+									table.remove(options, index)
+									removed = true
+									break
+								end
+							end
+							
+							if removed then
+								refreshOptions()
+							end
+							
+							return removed
+						end
+						
+						function cheat:AddOption(value)
+							table.insert(options, value)
+							
+							refreshOptions()
+						end
+						
+						function cheat:SetValue(value)
+							cheat.selected.Text = value
+							cheat.value = value
+							
+							if cheat.dropped then
+								cheat.fadelist()
+							end
+							
+							if callback then
+								local s, e = pcall(function()
+									callback(cheat.value)
+								end)
+
+								if not s then warn("error: ".. e) end
+                end
+            end
+
+						cheat.selected.Parent = cheat.dropdown
+						cheat.dropdown.Parent = cheat.container
+						cheat.list.Parent = cheat.container
+					elseif string.lower(kind) == "textbox" then
+						local placeholdertext = data and data.placeholder
+
+						cheat.background = finity:Create("ImageLabel", {
+							Name = "Background",
+							BackgroundColor3 = Color3.new(1, 1, 1),
+							BackgroundTransparency = 1,
+							Size = UDim2.new(1, 0, 1, 0),
+							ZIndex = 2,
+							Image = "rbxassetid://3570695787",
+							ImageColor3 = theme.textbox_background,
+							ImageTransparency = 0.5,
+							ScaleType = Enum.ScaleType.Slice,
+							SliceCenter = Rect.new(100, 100, 100, 100),
+							SliceScale = 0.02
+						})
+
+						cheat.textbox = finity:Create("TextBox", {
+							Name = "Textbox",
+							BackgroundColor3 = Color3.new(1, 1, 1),
+							BackgroundTransparency = 1,
+							Position = UDim2.new(0, 0, 0, 0),
+							Size = UDim2.new(1, 0, 1, 0),
+							ZIndex = 2,
+							Font = Enum.Font.Gotham,
+							Text = "",
+							TextColor3 = theme.textbox_text,
+							PlaceholderText = placeholdertext or "Value",
+							TextSize = 13,
+                            TextXAlignment = Enum.TextXAlignment.Center,
+                            ClearTextOnFocus = false
+						})
+
+						cheat.background.MouseEnter:Connect(function()
+							finity.gs["TweenService"]:Create(cheat.textbox, TweenInfo.new(0.1), {TextColor3 = theme.textbox_text_hover}):Play()
+						end)
+						cheat.background.MouseLeave:Connect(function()
+							finity.gs["TweenService"]:Create(cheat.textbox, TweenInfo.new(0.1), {TextColor3 = theme.textbox_text}):Play()
+						end)
+						cheat.textbox.Focused:Connect(function()
+							typing = true
+
+							finity.gs["TweenService"]:Create(cheat.background, TweenInfo.new(0.2), {ImageColor3 = theme.textbox_background_hover}):Play()
+						end)
+						cheat.textbox.FocusLost:Connect(function()
+							typing = false
+
+							finity.gs["TweenService"]:Create(cheat.background, TweenInfo.new(0.2), {ImageColor3 = theme.textbox_background}):Play()
+							finity.gs["TweenService"]:Create(cheat.textbox, TweenInfo.new(0.1), {TextColor3 = theme.textbox_text}):Play()
+
+							cheat.value = cheat.textbox.Text
+
+							if callback then
+								local s, e = pcall(function()
+									callback(cheat.value)
+								end)
+
+								if not s then warn("error: "..e) end
+                            end
+                        end)
+                        function cheat:SetValue(value)
+                            cheat.value = tostring(value)
+                            cheat.textbox.Text = tostring(val)
+                        end
+
+						cheat.background.Parent = cheat.container
+						cheat.textbox.Parent = cheat.container
+					elseif string.lower(kind) == "slider" then
+						cheat.value = 0
+
+						local suffix = data.suffix or ""
+						local minimum = data.min or 0
+                        local maximum = data.max or 1
+                        local default = data.default
+                        local precise = data.precise
+						
+						local moveconnection
+						local releaseconnection
+
+						cheat.sliderbar = finity:Create("ImageButton", {
+							Name = "Sliderbar",
+							AnchorPoint = Vector2.new(1, 0.5),
+							BackgroundColor3 = Color3.new(1, 1, 1),
+							BackgroundTransparency = 1,
+							Position = UDim2.new(1, 0, 0.5, 0),
+							Size = UDim2.new(1, 0, 0, 6),
+							ZIndex = 2,
+							Image = "rbxassetid://3570695787",
+							ImageColor3 = theme.slider_background,
+							ImageTransparency = 0.5,
+							ScaleType = Enum.ScaleType.Slice,
+							SliceCenter = Rect.new(100, 100, 100, 100),
+							SliceScale = 0.02,
+						})
+
+						cheat.numbervalue = finity:Create("TextLabel", {
+							Name = "Value",
+							AnchorPoint = Vector2.new(0, 0.5),
+							BackgroundColor3 = Color3.new(1, 1, 1),
+							BackgroundTransparency = 1,
+							Position = UDim2.new(0.5, 5, 0.5, 0),
+							Size = UDim2.new(1, 0, 0, 13),
+							ZIndex = 2,
+							Font = Enum.Font.Gotham,
+							TextXAlignment = Enum.TextXAlignment.Left,
+							Text = "",
+							TextTransparency = 1,
+							TextColor3 = theme.slider_text,
+							TextSize = 13,
+						})
+
+						cheat.visiframe = finity:Create("ImageLabel", {
+							Name = "Frame",
+							BackgroundColor3 = Color3.new(1, 1, 1),
+							BackgroundTransparency = 1,
+							Size = UDim2.new(0.5, 0, 1, 0),
+							ZIndex = 2,
+							Image = "rbxassetid://3570695787",
+							ImageColor3 = theme.slider_color,
+							ScaleType = Enum.ScaleType.Slice,
+							SliceCenter = Rect.new(100, 100, 100, 100),
+							SliceScale = 0.02
+                        })
+
+                        if data.default then
+                            local size = math.clamp(data.default - cheat.sliderbar.AbsolutePosition.X, 0, 150)
+							local percent = size / 150
+							local perc = default/maximum
+                            cheat.value = math.floor((minimum + (maximum - minimum) * percent) * 100) / 100
+                            finity.gs["TweenService"]:Create(cheat.visiframe, TweenInfo.new(0.1), {
+								Size = UDim2.new(perc, 0, 1, 0),
+                            }):Play()
+                            if callback then
+								local s, e = pcall(function()
+									callback(cheat.value)
+								end)
+
+								if not s then warn("error: ".. e) end
+							end
+                        end
+
+                        function cheat:SetValue(value)
+                            local size = math.clamp(value - cheat.sliderbar.AbsolutePosition.X, 0, 150)
+							local percent = size / 150
+							local perc = default/maximum
+                            cheat.value = math.floor((minimum + (maximum - minimum) * percent) * 100) / 100
+                            finity.gs["TweenService"]:Create(cheat.visiframe, TweenInfo.new(0.1), {
+								Size = UDim2.new(perc, 0, 1, 0),
+                            }):Play()
+                            if callback then
+								local s, e = pcall(function()
+									callback(cheat.value)
+								end)
+
+								if not s then warn("error: ".. e) end
+                end
+            end
+
+						cheat.sliderbar.MouseButton1Down:Connect(function()
+							local size = math.clamp(mouse.X - cheat.sliderbar.AbsolutePosition.X, 0, 150)
+							local percent = size / 150
+
+							cheat.value = math.floor((minimum + (maximum - minimum) * percent) * 100) / 100
+							if precise then
+								cheat.numbervalue.Text = math.ceil(tostring(cheat.value)) .. suffix
+							else
+								cheat.numbervalue.Text = tostring(cheat.value) .. suffix
+							end
+
+							if callback then
+								local s, e = pcall(function()
+									if data.precise then
+										callback(math.ceil(cheat.value))
+									else
+										callback(cheat.value)
+									end
+								end)
+
+								if not s then warn("error: ".. e) end
+							end
+
+							finity.gs["TweenService"]:Create(cheat.visiframe, TweenInfo.new(0.1), {
+								Size = UDim2.new(size / 150, 0, 1, 0),
+								ImageColor3 = theme.slider_color_sliding
+							}):Play()
+
+							finity.gs["TweenService"]:Create(cheat.numbervalue, TweenInfo.new(0.1), {
+								Position = UDim2.new(size / 150, 5, 0.5, 0),
+								TextTransparency = 0
+							}):Play()
+
+							moveconnection = mouse.Move:Connect(function()
+								local size = math.clamp(mouse.X - cheat.sliderbar.AbsolutePosition.X, 0, 150)
+								local percent = size / 150
+
+								cheat.value = math.floor((minimum + (maximum - minimum) * percent) * 100) / 100
+								if precise then
+									cheat.numbervalue.Text = math.ceil(tostring(cheat.value)) .. suffix
+								else
+									cheat.numbervalue.Text = tostring(cheat.value) .. suffix
+								end
+
+								if callback then
+                                    local s, e = pcall(function()
+                                        if data.precise then
+                                            callback(math.ceil(cheat.value))
+                                        else
+                                            callback(cheat.value)
+                                        end
+									end)
+
+									if not s then warn("error: ".. e) end
+								end
+
+								finity.gs["TweenService"]:Create(cheat.visiframe, TweenInfo.new(0.1), {
+									Size = UDim2.new(size / 150, 0, 1, 0),
+								ImageColor3 = theme.slider_color_sliding
+                                }):Play()
+                                
+                                local Position = UDim2.new(size / 150, 5, 0.5, 0);
+
+                                if Position.Width.Scale >= 0.6 then
+                                    Position = UDim2.new(1, -cheat.numbervalue.TextBounds.X, 0.5, 10);
+                                end
+
+								finity.gs["TweenService"]:Create(cheat.numbervalue, TweenInfo.new(0.1), {
+									Position = Position,
+									TextTransparency = 0
+								}):Play()
+							end)
+
+							releaseconnection = finity.gs["UserInputService"].InputEnded:Connect(function(Mouse)
+								if Mouse.UserInputType == Enum.UserInputType.MouseButton1 then
+
+									finity.gs["TweenService"]:Create(cheat.visiframe, TweenInfo.new(0.1), {
+										ImageColor3 = theme.slider_color
+									}):Play()
+
+									finity.gs["TweenService"]:Create(cheat.numbervalue, TweenInfo.new(0.1), {
+										TextTransparency = 1
+									}):Play()
+
+									moveconnection:Disconnect()
+									moveconnection = nil
+									releaseconnection:Disconnect()
+									releaseconnection = nil
+								end
+							end)
+						end)
+
+						cheat.visiframe.Parent = cheat.sliderbar
+						cheat.numbervalue.Parent = cheat.sliderbar
+						cheat.sliderbar.Parent = cheat.container
+					elseif string.lower(kind) == "button" then
+						local button_text = data and data.text
+
+						cheat.background = finity:Create("ImageLabel", {
+							Name = "Background",
+							BackgroundColor3 = Color3.new(1, 1, 1),
+							BackgroundTransparency = 1,
+							Size = UDim2.new(1, 0, 1, 0),
+							ZIndex = 2,
+							Image = "rbxassetid://3570695787",
+							ImageColor3 = theme.button_background,
+							ImageTransparency = 0.5,
+							ScaleType = Enum.ScaleType.Slice,
+							SliceCenter = Rect.new(100, 100, 100, 100),
+							SliceScale = 0.02
+						})
+
+						cheat.button = finity:Create("TextButton", {
+							Name = "Button",
+							BackgroundColor3 = Color3.new(1, 1, 1),
+							BackgroundTransparency = 1,
+							Position = UDim2.new(0, 0, 0, 0),
+							Size = UDim2.new(1, 0, 1, 0),
+							ZIndex = 2,
+							Font = Enum.Font.Gotham,
+							Text = button_text or "Button",
+							TextColor3 = theme.textbox_text,
+							TextSize = 13,
+							TextXAlignment = Enum.TextXAlignment.Center
+						})
+
+						cheat.button.MouseEnter:Connect(function()
+							finity.gs["TweenService"]:Create(cheat.background, TweenInfo.new(0.2), {ImageColor3 = theme.button_background_hover}):Play()
+						end)
+						cheat.button.MouseLeave:Connect(function()
+							finity.gs["TweenService"]:Create(cheat.background, TweenInfo.new(0.2), {ImageColor3 = theme.button_background}):Play()
+						end)
+						cheat.button.MouseButton1Down:Connect(function()
+							finity.gs["TweenService"]:Create(cheat.background, TweenInfo.new(0.2), {ImageColor3 = theme.button_background_down}):Play()
+						end)
+						cheat.button.MouseButton1Up:Connect(function()
+							finity.gs["TweenService"]:Create(cheat.background, TweenInfo.new(0.2), {ImageColor3 = theme.button_background}):Play()
+							
+							if callback then
+								local s, e = pcall(function()
+									callback()
+								end)
+
+								if not s then warn("error: ".. e) end
+							end
+                        end)
+                        
+                        function cheat:Fire()
+                            if callback then
+								local s, e = pcall(function()
+									callback()
+								end)
+
+								if not s then warn("error: ".. e) end
+							end
+                        end
+
+						cheat.background.Parent = cheat.container
+						cheat.button.Parent = cheat.container
+					
+					elseif string.lower(kind) == "keybind" or string.lower(kind) == "bind" then
+                        local callback_bind = data and data.bind
+						local connection
+						cheat.holding = false
+						
+						cheat.background = finity:Create("ImageLabel", {
+							Name = "Background",
+							BackgroundColor3 = Color3.new(1, 1, 1),
+							BackgroundTransparency = 1,
+							Size = UDim2.new(1, 0, 1, 0),
+							ZIndex = 2,
+							Image = "rbxassetid://3570695787",
+							ImageColor3 = theme.button_background,
+							ImageTransparency = 0.5,
+							ScaleType = Enum.ScaleType.Slice,
+							SliceCenter = Rect.new(100, 100, 100, 100),
+							SliceScale = 0.02
+						})
+
+						cheat.button = finity:Create("TextButton", {
+							Name = "Button",
+							BackgroundColor3 = Color3.new(1, 1, 1),
+							BackgroundTransparency = 1,
+							Position = UDim2.new(0, 0, 0, 0),
+							Size = UDim2.new(1, 0, 1, 0),
+							ZIndex = 2,
+							Font = Enum.Font.Gotham,
+							Text = "Click to Bind",
+							TextColor3 = theme.textbox_text,
+							TextSize = 13,
+							TextXAlignment = Enum.TextXAlignment.Center
+						})
+
+						cheat.button.MouseEnter:Connect(function()
+							finity.gs["TweenService"]:Create(cheat.background, TweenInfo.new(0.2), {ImageColor3 = theme.button_background_hover}):Play()
+						end)
+						cheat.button.MouseLeave:Connect(function()
+							finity.gs["TweenService"]:Create(cheat.background, TweenInfo.new(0.2), {ImageColor3 = theme.button_background}):Play()
+						end)
+						cheat.button.MouseButton1Down:Connect(function()
+							finity.gs["TweenService"]:Create(cheat.background, TweenInfo.new(0.2), {ImageColor3 = theme.button_background_down}):Play()
+                        end)
+                        cheat.button.MouseButton2Down:Connect(function()
+							finity.gs["TweenService"]:Create(cheat.background, TweenInfo.new(0.2), {ImageColor3 = theme.button_background_down}):Play()
+						end)
+						cheat.button.MouseButton1Up:Connect(function()
+							finity.gs["TweenService"]:Create(cheat.background, TweenInfo.new(0.2), {ImageColor3 = theme.button_background}):Play()
+							cheat.button.Text = "Press key..."
+							
+							if connection then
+								connection:Disconnect()
+								connection = nil
+							end
+							cheat.holding = false
+
+							connection = finity.gs["UserInputService"].InputBegan:Connect(function(Input)
+								if Input.UserInputType.Name == "Keyboard" and Input.KeyCode ~= finityData.ToggleKey and Input.KeyCode ~= Enum.KeyCode.Backspace then
+									cheat.button.Text = "Bound to " .. tostring(Input.KeyCode.Name)
+									
+                                    if connection then
+                                        connection:Disconnect()
+                                        connection = nil
+                                    end
+									
+									delay(0, function()
+										callback_bind = Input.KeyCode
+										cheat.value = Input.KeyCode
+
+										if callback then
+											local s, e = pcall(function()
+												callback(Input.KeyCode)
+											end)
+			
+											if not s then warn("error: ".. e) end
+										end
+									end)
+								elseif Input.KeyCode == Enum.KeyCode.Backspace then
+									callback_bind = nil
+									cheat.button.Text = "Click to Bind"
+									cheat.value = nil
+									cheat.holding = false
+									delay(0, function()
+										if callback then
+											local s, e = pcall(function()
+												callback()
+											end)
+			
+											if not s then warn("error: ".. e) end
+										end
+									end)
+
+									connection:Disconnect()
+									connection = nil
+								elseif Input.KeyCode == finityData.ToggleKey then
+									cheat.button.Text = "Invalid Key";
+									cheat.value = nil
+								end
+							end)
+						end)
+						
+                        cheat.button.MouseButton2Up:Connect(function()
+							finity.gs["TweenService"]:Create(cheat.background, TweenInfo.new(0.2), {ImageColor3 = theme.button_background}):Play()
+							cheat.value = nil
+							callback_bind = nil
+							cheat.button.Text = "Click to Bind"
+							cheat.holding = false
+
+							delay(0, function()
+								if callback then
+									local s, e = pcall(function()
+										callback()
+									end)
+	
+									if not s then warn("error: ".. e) end
+								end
+							end)
+							
+                            if connection then
+                                connection:Disconnect()
+                                connection = nil
+                            end
+						end)
+                        
+                        function cheat:SetValue(value)
+                            cheat.value = tostring(value)
+                            cheat.button.Text = "Bound to " .. tostring(value)
+                        end
+						
+						finity.gs["UserInputService"].InputBegan:Connect(function(Input, Process)
+							if callback_bind and Input.KeyCode == callback_bind and not Process then
+								cheat.holding = true
+								if callback then
+									local s, e = pcall(function()
+										callback(Input.KeyCode)
+									end)
+	
+									if not s then warn("error: ".. e) end
+								end
+							end
+						end)
+						finity.gs["UserInputService"].InputBegan:Connect(function(Input, Process)
+							if callback_bind and Input.KeyCode == callback_bind and not Process then
+								cheat.holding = true
+							end
+						end)
+						
+						if callback_bind then
+							cheat.button.Text = "Bound to " .. tostring(callback_bind.Name)
+						end
+
+						cheat.background.Parent = cheat.container
+						cheat.button.Parent = cheat.container
+					end
+				end
+
+				cheat.frame.Parent = sector.container
+				cheat.label.Parent = cheat.frame
+				cheat.container.Parent = cheat.frame
+
+				return cheat
+			end
+
+			sector.frame.Parent = category[calculateSector()]
+			sector.container.Parent = sector.frame
+			sector.title.Parent = sector.frame
+
+			return sector
+		end
+		
+		firstCategory = false
+		
+		return category
+	end
+
+	self:addShadow(self2.container, 0)
+
+	self2.categories.ClipsDescendants = true
+	
+	if not finity.gs["RunService"]:IsStudio() then
+		self2.userinterface.Parent = self.gs["CoreGui"]
+	else
+		self2.userinterface.Parent = self.gs["Players"].LocalPlayer:WaitForChild("PlayerGui")
+	end
+	
+	self2.container.Parent = self2.userinterface
 	self2.categories.Parent = self2.container
 	self2.sidebar.Parent = self2.container
 	self2.topbar.Parent = self2.container
 	self2.tip.Parent = self2.topbar
 
-	-- Add shadow
-	self:addShadow(self2.container, 0)
-
-	-- Setup auto-save after all UI elements are created
-	task.spawn(function()
-		task.wait(0.1) -- Small delay to ensure UI elements are created
-		if self2.container and typeof(self2.container) == "Instance" then
-			finity.setupAutoSave()
-		end
-	end)
-
-	-- Load saved state after container is created
-	task.spawn(function()
-		task.wait(0.1) -- Small delay to ensure container is created
-		if self2.container and typeof(self2.container) == "Instance" then
-			finity.loadConfig(currentConfig)
-		end
-	end)
-
-	-- Add Category method to the window object
-	function self2:Category(name)
-		local category = {}
-		local self3 = category
-		
-		self3.name = name
-		self3.buttons = {}
-		self3.sectors = {}
-		
-		-- Create category button
-		self3.button = self:Create("TextButton", {
-			Name = name,
-			BackgroundColor3 = theme.category_button_background,
-			BorderColor3 = theme.category_button_border,
-			BorderSizePixel = 1,
-			Size = UDim2.new(1, 0, 0, 30),
-			Position = UDim2.new(0, 0, 0, #self2.sidebar:GetChildren() * 30),
-			Text = name,
-			Font = Enum.Font.GothamSemibold,
-			TextSize = 13,
-			TextColor3 = theme.text_color,
-			BackgroundTransparency = 1,
-			TextTransparency = 0.3,
-			ZIndex = 3
-		})
-		
-		-- Create category frame
-		self3.frame = self:Create("Frame", {
-			Name = name,
-			BackgroundColor3 = theme.main_container,
-			BorderSizePixel = 0,
-			Size = UDim2.new(1, 0, 1, 0),
-			Position = UDim2.new(0, 0, 0, 0),
-			Visible = false,
-			ZIndex = 2
-		})
-		
-		-- Add scrolling frame for sectors
-		self3.scrollframe = self:Create("ScrollingFrame", {
-			Name = "ScrollFrame",
-			BackgroundTransparency = 1,
-			BorderSizePixel = 0,
-			Size = UDim2.new(1, 0, 1, 0),
-			Position = UDim2.new(0, 0, 0, 0),
-			ScrollBarThickness = 4,
-			ScrollBarImageColor3 = theme.scrollbar_color,
-			ZIndex = 2
-		})
-		
-		-- Add UIListLayout for sectors
-		self3.listlayout = self:Create("UIListLayout", {
-			Padding = UDim.new(0, 5),
-			HorizontalAlignment = Enum.HorizontalAlignment.Center,
-			VerticalAlignment = Enum.VerticalAlignment.Top,
-			SortOrder = Enum.SortOrder.LayoutOrder
-		})
-		
-		-- Add button to sidebar
-		self3.button.Parent = self2.sidebar
-		self3.frame.Parent = self2.categories
-		self3.scrollframe.Parent = self3.frame
-		self3.listlayout.Parent = self3.scrollframe
-		
-		-- Handle button click
-		self3.button.MouseButton1Click:Connect(function()
-			for _, v in pairs(self2.categories:GetChildren()) do
-				if v:IsA("Frame") then
-					v.Visible = false
-				end
-			end
-			self3.frame.Visible = true
-			
-			for _, v in pairs(self2.sidebar:GetChildren()) do
-				if v:IsA("TextButton") then
-					v.TextTransparency = 0.3
-					v.BackgroundTransparency = 1
-				end
-			end
-			self3.button.TextTransparency = 0
-			self3.button.BackgroundTransparency = 0
-		end)
-		
-		-- Sector Creation
-		function category:Sector(name)
-			local sector = {}
-			local self4 = sector
-			
-			self4.name = name
-			self4.buttons = {}
-			self4.toggles = {}
-			self4.sliders = {}
-			self4.textboxes = {}
-			self4.dropdowns = {}
-			
-			-- Create sector frame
-			self4.frame = self:Create("Frame", {
-				Name = name,
-				BackgroundColor3 = theme.main_container,
-				BorderColor3 = theme.separator_color,
-				BorderSizePixel = 1,
-				Size = UDim2.new(1, -20, 0, 100),
-				Position = UDim2.new(0, 10, 0, #self3.scrollframe:GetChildren() * 105),
-				ZIndex = 2
-			})
-			
-			-- Create sector title
-			self4.title = self:Create("TextLabel", {
-				Name = "Title",
-				BackgroundTransparency = 1,
-				Size = UDim2.new(1, 0, 0, 20),
-				Position = UDim2.new(0, 0, 0, 0),
-				Text = name,
-				Font = Enum.Font.GothamSemibold,
-				TextSize = 13,
-				TextColor3 = theme.text_color,
-				TextXAlignment = Enum.TextXAlignment.Left,
-				ZIndex = 2
-			})
-			
-			-- Add sector to category
-			self4.frame.Parent = self3.scrollframe
-			self4.title.Parent = self4.frame
-			
-			-- Toggle Creation
-			function sector:Toggle(name, default, callback)
-				local toggle = {}
-				local self5 = toggle
-				
-				self5.name = name
-				self5.value = default
-				self5.callback = callback
-				
-				-- Create toggle frame
-				self5.frame = self:Create("Frame", {
-					Name = name,
-					BackgroundTransparency = 1,
-					Size = UDim2.new(1, -20, 0, 20),
-					Position = UDim2.new(0, 10, 0, #self4.frame:GetChildren() * 25),
-					ZIndex = 2
-				})
-				
-				-- Create toggle button
-				self5.button = self:Create("TextButton", {
-					Name = "Button",
-					BackgroundColor3 = theme.checkbox_outer,
-					BorderSizePixel = 0,
-					Size = UDim2.new(0, 20, 0, 20),
-					Position = UDim2.new(0, 0, 0, 0),
-					Text = "",
-					ZIndex = 2
-				})
-				
-				-- Create toggle inner
-				self5.inner = self:Create("Frame", {
-					Name = "Inner",
-					BackgroundColor3 = theme.checkbox_inner,
-					BorderSizePixel = 0,
-					Size = UDim2.new(0, 16, 0, 16),
-					Position = UDim2.new(0, 2, 0, 2),
-					ZIndex = 2
-				})
-				
-				-- Create toggle text
-				self5.text = self:Create("TextLabel", {
-					Name = "Text",
-					BackgroundTransparency = 1,
-					Size = UDim2.new(1, -30, 1, 0),
-					Position = UDim2.new(0, 25, 0, 0),
-					Text = name,
-					Font = Enum.Font.GothamSemibold,
-					TextSize = 13,
-					TextColor3 = theme.text_color,
-					TextXAlignment = Enum.TextXAlignment.Left,
-					ZIndex = 2
-				})
-				
-				-- Add toggle to sector
-				self5.frame.Parent = self4.frame
-				self5.button.Parent = self5.frame
-				self5.inner.Parent = self5.button
-				self5.text.Parent = self5.frame
-				
-				-- Handle toggle click
-				self5.button.MouseButton1Click:Connect(function()
-					self5.value = not self5.value
-					if self5.value then
-						self5.inner.BackgroundColor3 = theme.checkbox_checked
-					else
-						self5.inner.BackgroundColor3 = theme.checkbox_inner
-					end
-					if self5.callback then
-						self5.callback(self5.value)
-					end
-				end)
-				
-				-- Set initial state
-				if self5.value then
-					self5.inner.BackgroundColor3 = theme.checkbox_checked
-				end
-				
-				-- Add getter for value
-				function toggle:GetValue()
-					return self5.value
-				end
-				
-				-- Add setter for value
-				function toggle:SetValue(value)
-					self5.value = value
-					if self5.value then
-						self5.inner.BackgroundColor3 = theme.checkbox_checked
-					else
-						self5.inner.BackgroundColor3 = theme.checkbox_inner
-					end
-					if self5.callback then
-						self5.callback(self5.value)
-					end
-				end
-				
-				table.insert(self4.toggles, toggle)
-				return toggle
-			end
-			
-			-- Button Creation
-			function sector:Button(name, callback)
-				local button = {}
-				local self5 = button
-				
-				self5.name = name
-				self5.callback = callback
-				
-				-- Create button frame
-				self5.frame = self:Create("Frame", {
-					Name = name,
-					BackgroundTransparency = 1,
-					Size = UDim2.new(1, -20, 0, 20),
-					Position = UDim2.new(0, 10, 0, #self4.frame:GetChildren() * 25),
-					ZIndex = 2
-				})
-				
-				-- Create button
-				self5.button = self:Create("TextButton", {
-					Name = "Button",
-					BackgroundColor3 = theme.button_background,
-					BorderSizePixel = 0,
-					Size = UDim2.new(1, 0, 1, 0),
-					Position = UDim2.new(0, 0, 0, 0),
-					Text = name,
-					Font = Enum.Font.GothamSemibold,
-					TextSize = 13,
-					TextColor3 = theme.text_color,
-					ZIndex = 2
-				})
-				
-				-- Add button to sector
-				self5.frame.Parent = self4.frame
-				self5.button.Parent = self5.frame
-				
-				-- Handle button click
-				self5.button.MouseButton1Click:Connect(function()
-					if self5.callback then
-						self5.callback()
-					end
-				end)
-				
-				-- Handle button hover
-				self5.button.MouseEnter:Connect(function()
-					self5.button.BackgroundColor3 = theme.button_background_hover
-				end)
-				
-				self5.button.MouseLeave:Connect(function()
-					self5.button.BackgroundColor3 = theme.button_background
-				end)
-				
-				table.insert(self4.buttons, button)
-				return button
-			end
-			
-			-- Slider Creation
-			function sector:Slider(name, min, max, default, callback)
-				local slider = {}
-				local self5 = slider
-				
-				self5.name = name
-				self5.min = min
-				self5.max = max
-				self5.value = default
-				self5.callback = callback
-				
-				-- Create slider frame
-				self5.frame = self:Create("Frame", {
-					Name = name,
-					BackgroundTransparency = 1,
-					Size = UDim2.new(1, -20, 0, 40),
-					Position = UDim2.new(0, 10, 0, #self4.frame:GetChildren() * 45),
-					ZIndex = 2
-				})
-				
-				-- Create slider text
-				self5.text = self:Create("TextLabel", {
-					Name = "Text",
-					BackgroundTransparency = 1,
-					Size = UDim2.new(1, 0, 0, 20),
-					Position = UDim2.new(0, 0, 0, 0),
-					Text = name .. ": " .. default,
-					Font = Enum.Font.GothamSemibold,
-					TextSize = 13,
-					TextColor3 = theme.text_color,
-					TextXAlignment = Enum.TextXAlignment.Left,
-					ZIndex = 2
-				})
-				
-				-- Create slider background
-				self5.background = self:Create("Frame", {
-					Name = "Background",
-					BackgroundColor3 = theme.slider_background,
-					BorderSizePixel = 0,
-					Size = UDim2.new(1, 0, 0, 4),
-					Position = UDim2.new(0, 0, 0, 25),
-					ZIndex = 2
-				})
-				
-				-- Create slider fill
-				self5.fill = self:Create("Frame", {
-					Name = "Fill",
-					BackgroundColor3 = theme.slider_color,
-					BorderSizePixel = 0,
-					Size = UDim2.new(0, 0, 1, 0),
-					Position = UDim2.new(0, 0, 0, 0),
-					ZIndex = 2
-				})
-				
-				-- Add slider to sector
-				self5.frame.Parent = self4.frame
-				self5.text.Parent = self5.frame
-				self5.background.Parent = self5.frame
-				self5.fill.Parent = self5.background
-				
-				-- Handle slider dragging
-				local dragging = false
-				
-				self5.background.InputBegan:Connect(function(input)
-					if input.UserInputType == Enum.UserInputType.MouseButton1 then
-						dragging = true
-					end
-				end)
-				
-				self5.background.InputEnded:Connect(function(input)
-					if input.UserInputType == Enum.UserInputType.MouseButton1 then
-						dragging = false
-					end
-				end)
-				
-				self5.background.InputChanged:Connect(function(input)
-					if input.UserInputType == Enum.UserInputType.MouseMovement then
-						self5.input = input
-					end
-				end)
-				
-				game:GetService("UserInputService").InputChanged:Connect(function(input)
-					if input == self5.input and dragging then
-						local pos = self5.background.AbsolutePosition
-						local size = self5.background.AbsoluteSize
-						local x = math.clamp(mouse.X - pos.X, 0, size.X)
-						local value = self5.min + (x / size.X) * (self5.max - self5.min)
-						value = math.floor(value)
-						self5.value = value
-						self5.fill.Size = UDim2.new(x / size.X, 0, 1, 0)
-						self5.text.Text = name .. ": " .. value
-						if self5.callback then
-							self5.callback(value)
-						end
-					end
-				end)
-				
-				-- Set initial state
-				local x = (self5.value - self5.min) / (self5.max - self5.min)
-				self5.fill.Size = UDim2.new(x, 0, 1, 0)
-				
-				table.insert(self4.sliders, slider)
-				return slider
-			end
-			
-			-- Textbox Creation
-			function sector:Textbox(name, placeholder, callback)
-				local textbox = {}
-				local self5 = textbox
-				
-				self5.name = name
-				self5.placeholder = placeholder
-				self5.callback = callback
-				
-				-- Create textbox frame
-				self5.frame = self:Create("Frame", {
-					Name = name,
-					BackgroundTransparency = 1,
-					Size = UDim2.new(1, -20, 0, 20),
-					Position = UDim2.new(0, 10, 0, #self4.frame:GetChildren() * 25),
-					ZIndex = 2
-				})
-				
-				-- Create textbox
-				self5.textbox = self:Create("TextBox", {
-					Name = "Textbox",
-					BackgroundColor3 = theme.textbox_background,
-					BorderSizePixel = 0,
-					Size = UDim2.new(1, 0, 1, 0),
-					Position = UDim2.new(0, 0, 0, 0),
-					Text = "",
-					PlaceholderText = placeholder,
-					Font = Enum.Font.GothamSemibold,
-					TextSize = 13,
-					TextColor3 = theme.textbox_text,
-					PlaceholderColor3 = theme.textbox_placeholder,
-					TextXAlignment = Enum.TextXAlignment.Left,
-					ZIndex = 2
-				})
-				
-				-- Add textbox to sector
-				self5.frame.Parent = self4.frame
-				self5.textbox.Parent = self5.frame
-				
-				-- Handle textbox focus
-				self5.textbox.Focused:Connect(function()
-					self5.textbox.BackgroundColor3 = theme.textbox_background_hover
-					self5.textbox.TextColor3 = theme.textbox_text_hover
-				end)
-				
-				self5.textbox.FocusLost:Connect(function()
-					self5.textbox.BackgroundColor3 = theme.textbox_background
-					self5.textbox.TextColor3 = theme.textbox_text
-					if self5.callback then
-						self5.callback(self5.textbox.Text)
-					end
-				end)
-				
-				table.insert(self4.textboxes, textbox)
-				return textbox
-			end
-			
-			-- Dropdown Creation
-			function sector:Dropdown(name, options, default, callback)
-				local dropdown = {}
-				local self5 = dropdown
-				
-				self5.name = name
-				self5.options = options
-				self5.value = default
-				self5.callback = callback
-				self5.open = false
-				
-				-- Create dropdown frame
-				self5.frame = self:Create("Frame", {
-					Name = name,
-					BackgroundTransparency = 1,
-					Size = UDim2.new(1, -20, 0, 20),
-					Position = UDim2.new(0, 10, 0, #self4.frame:GetChildren() * 25),
-					ZIndex = 2
-				})
-				
-				-- Create dropdown button
-				self5.button = self:Create("TextButton", {
-					Name = "Button",
-					BackgroundColor3 = theme.dropdown_background,
-					BorderSizePixel = 0,
-					Size = UDim2.new(1, 0, 1, 0),
-					Position = UDim2.new(0, 0, 0, 0),
-					Text = default,
-					Font = Enum.Font.GothamSemibold,
-					TextSize = 13,
-					TextColor3 = theme.dropdown_text,
-					TextXAlignment = Enum.TextXAlignment.Left,
-					ZIndex = 2
-				})
-				
-				-- Create dropdown list
-				self5.list = self:Create("Frame", {
-					Name = "List",
-					BackgroundColor3 = theme.dropdown_background,
-					BorderSizePixel = 0,
-					Size = UDim2.new(1, 0, 0, 0),
-					Position = UDim2.new(0, 0, 0, 20),
-					Visible = false,
-					ZIndex = 2
-				})
-				
-				-- Add dropdown to sector
-				self5.frame.Parent = self4.frame
-				self5.button.Parent = self5.frame
-				self5.list.Parent = self5.frame
-				
-				-- Create options
-				for i, option in ipairs(options) do
-					local optionButton = self:Create("TextButton", {
-						Name = option,
-						BackgroundColor3 = theme.dropdown_background,
-						BorderSizePixel = 0,
-						Size = UDim2.new(1, 0, 0, 20),
-						Position = UDim2.new(0, 0, 0, (i - 1) * 20),
-						Text = option,
-						Font = Enum.Font.GothamSemibold,
-						TextSize = 13,
-						TextColor3 = theme.dropdown_text,
-						TextXAlignment = Enum.TextXAlignment.Left,
-						ZIndex = 2
-					})
-					
-					optionButton.Parent = self5.list
-					
-					optionButton.MouseButton1Click:Connect(function()
-						self5.value = option
-						self5.button.Text = option
-						self5.open = false
-						self5.list.Visible = false
-						if self5.callback then
-							self5.callback(option)
-						end
-					end)
-					
-					optionButton.MouseEnter:Connect(function()
-						optionButton.TextColor3 = theme.dropdown_text_hover
-					end)
-					
-					optionButton.MouseLeave:Connect(function()
-						optionButton.TextColor3 = theme.dropdown_text
-					end)
-				end
-				
-				-- Handle dropdown click
-				self5.button.MouseButton1Click:Connect(function()
-					self5.open = not self5.open
-					self5.list.Visible = self5.open
-					if self5.open then
-						self5.list.Size = UDim2.new(1, 0, 0, #options * 20)
-					else
-						self5.list.Size = UDim2.new(1, 0, 0, 0)
-					end
-				end)
-				
-				-- Handle dropdown hover
-				self5.button.MouseEnter:Connect(function()
-					self5.button.TextColor3 = theme.dropdown_text_hover
-				end)
-				
-				self5.button.MouseLeave:Connect(function()
-					self5.button.TextColor3 = theme.dropdown_text
-				end)
-				
-				table.insert(self4.dropdowns, dropdown)
-				return dropdown
-			end
-			
-			table.insert(self3.sectors, sector)
-			return sector
-		end
-		
-		table.insert(self2.categories, category)
-		return category
-	end
-
 	return self2, finityData
-end
-
--- Configuration Management Functions
-function finity.saveConfig(name)
-    if not name then return end
-    local config = {
-        position = self2.container.Position,
-        size = self2.container.Size,
-        minimized = finityData.Minimized,
-        maximized = finityData.Maximized
-    }
-    writefile(configFolder .. "/" .. name .. ".json", game:GetService("HttpService"):JSONEncode(config))
-end
-
-function finity.loadConfig(name)
-    if not name then return end
-    local success, config = pcall(function()
-        return game:GetService("HttpService"):JSONDecode(readfile(configFolder .. "/" .. name .. ".json"))
-    end)
-    if success and config then
-        if config.position then self2.container.Position = config.position end
-        if config.size then self2.container.Size = config.size end
-        if config.minimized then finityData.Minimized = config.minimized end
-        if config.maximized then finityData.Maximized = config.maximized end
-    end
-end
-
-function finity.deleteConfig(name)
-    if not name then return end
-    if isfile(configFolder .. "/" .. name .. ".json") then
-        delfile(configFolder .. "/" .. name .. ".json")
-    end
-end
-
-function finity.listConfigs()
-    local configs = {}
-    for _, file in ipairs(listfiles(configFolder)) do
-        if file:match("%.json$") then
-            table.insert(configs, file:match("([^/]+)%.json$"))
-        end
-    end
-    return configs
-end
-
-function finity.setupAutoSave()
-    if not self2.container then return end
-    
-    -- Save on position/size change
-    if self2.container then
-        self2.container:GetPropertyChangedSignal("Position"):Connect(function()
-            if autoSave then finity.saveConfig(currentConfig) end
-        end)
-        self2.container:GetPropertyChangedSignal("Size"):Connect(function()
-            if autoSave then finity.saveConfig(currentConfig) end
-        end)
-    end
-    
-    -- Save on category text change
-    if self2.categories then
-        for _, category in ipairs(self2.categories:GetChildren()) do
-            if category:IsA("TextLabel") then
-                category:GetPropertyChangedSignal("Text"):Connect(function()
-                    if autoSave then finity.saveConfig(currentConfig) end
-                end)
-            end
-        end
-    end
 end
 
 return finity
