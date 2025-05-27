@@ -131,144 +131,6 @@ function finity.new(isdark, gprojectName, thinProject)
 		makefolder(configFolder)
 	end
 
-	-- Configuration Functions
-	self2.SaveConfig = function(name)
-		name = name or currentConfig
-		local config = {
-			Theme = isdark and "Dark" or "Light",
-			WindowState = {
-				Position = self2.container.Position,
-				Size = self2.container.Size,
-				Minimized = minimized,
-				Maximized = maximized
-			},
-			Settings = {}
-		}
-		
-		-- Save all UI element states
-		for _, category in pairs(self2.categories:GetChildren()) do
-			if category:IsA("ScrollingFrame") then
-				for _, element in pairs(category:GetDescendants()) do
-					if element:IsA("TextButton") or element:IsA("TextBox") then
-						config.Settings[element.Name] = {
-							Value = element.Text,
-							Visible = element.Visible
-						}
-					end
-				end
-			end
-		end
-		
-		writefile(configFolder .. "/" .. name .. ".json", game:GetService("HttpService"):JSONEncode(config))
-		configs[name] = config
-	end
-
-	self2.LoadConfig = function(name)
-		name = name or currentConfig
-		local success, config = pcall(function()
-			return game:GetService("HttpService"):JSONDecode(readfile(configFolder .. "/" .. name .. ".json"))
-		end)
-		
-		if success and config then
-			-- Apply theme
-			if config.Theme == "Dark" and not isdark then
-				isdark = true
-				theme = finity.dark_theme
-			elseif config.Theme == "Light" and isdark then
-				isdark = false
-				theme = finity.theme
-			end
-			
-			-- Apply window state
-			if config.WindowState then
-				self2.container.Position = config.WindowState.Position
-				self2.container.Size = config.WindowState.Size
-				minimized = config.WindowState.Minimized
-				maximized = config.WindowState.Maximized
-			end
-			
-			-- Apply settings
-			if config.Settings then
-				for name, setting in pairs(config.Settings) do
-					local element = self2.container:FindFirstChild(name, true)
-					if element then
-						element.Text = setting.Value
-						element.Visible = setting.Visible
-					end
-				end
-			end
-			
-			configs[name] = config
-			currentConfig = name
-		end
-	end
-
-	self2.DeleteConfig = function(name)
-		if name == "default" then return end
-		if delfile(configFolder .. "/" .. name .. ".json") then
-			configs[name] = nil
-		end
-	end
-
-	self2.ListConfigs = function()
-		local list = {}
-		for _, file in pairs(listfiles(configFolder)) do
-			local name = string.match(file, "([^/]+)%.json$")
-			if name then
-				table.insert(list, name)
-			end
-		end
-		return list
-	end
-
-	self2.SetAutoSave = function(enabled)
-		autoSave = enabled
-	end
-
-	-- Auto-save on changes
-	local function setupAutoSave()
-		if autoSave then
-			-- Use a delayed check to ensure UI elements are created
-			task.spawn(function()
-				task.wait(0.1) -- Small delay to ensure UI elements are created
-				
-				-- Save when window state changes
-				if self2.container then
-					self2.container:GetPropertyChangedSignal("Position"):Connect(function()
-						self2.SaveConfig()
-					end)
-					
-					self2.container:GetPropertyChangedSignal("Size"):Connect(function()
-						self2.SaveConfig()
-					end)
-				end
-				
-				-- Save when UI elements change
-				if self2.categories then
-					for _, category in pairs(self2.categories:GetChildren()) do
-						if category:IsA("ScrollingFrame") then
-							for _, element in pairs(category:GetDescendants()) do
-								if element:IsA("TextButton") or element:IsA("TextBox") then
-									element:GetPropertyChangedSignal("Text"):Connect(function()
-										self2.SaveConfig()
-									end)
-								end
-							end
-						end
-					end
-				end
-			end)
-		end
-	end
-
-	-- Load default config on startup
-	self2.LoadConfig("default")
-	
-	-- Move setupAutoSave call to after UI initialization
-	if not finity.gs["RunService"]:IsStudio() and self.gs["CoreGui"]:FindFirstChild("FinityUI") then
-		self.gs["CoreGui"]:FindFirstChild("FinityUI"):Destroy()
-	end
-
 	local theme = finity.theme
 	local projectName = false
 	local thinMenu = false
@@ -301,6 +163,43 @@ function finity.new(isdark, gprojectName, thinProject)
 		OriginalPosition = originalPosition
 	}
 
+	-- Create UI elements first
+	self2.userinterface = self:Create("ScreenGui", {
+		Name = "FinityUI",
+		ZIndexBehavior = Enum.ZIndexBehavior.Global,
+		ResetOnSpawn = false,
+	})
+
+	self2.container = self:Create("ImageLabel", {
+		Draggable = true,
+		Active = true,
+		Name = "Container",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundTransparency = 0,
+		BackgroundColor3 = theme.main_container,
+		BorderSizePixel = 0,
+		Position = UDim2.new(0.5, 0, 0.5, 0),
+		Size = UDim2.new(0, 800, 0, 500),
+		ZIndex = 2,
+		ImageTransparency = 1
+    })
+    
+    self2.modal = self:Create("TextButton", {
+        Text = "";
+        Transparency = 1;
+        Modal = true;
+    })
+    self2.modal.Parent = self2.userinterface
+
+	-- Add the container to the UI
+	self2.container.Parent = self2.userinterface
+
+	if not finity.gs["RunService"]:IsStudio() then
+		self2.userinterface.Parent = self.gs["CoreGui"]
+	else
+		self2.userinterface.Parent = self.gs["Players"].LocalPlayer:WaitForChild("PlayerGui")
+	end
+
 	-- Window State Management
 	local windowStates = {
 		Normal = "Normal",
@@ -317,7 +216,7 @@ function finity.new(isdark, gprojectName, thinProject)
 
 	-- Window Animation Functions
 	local function animateWindow(property, targetValue, duration)
-		if not self2.container then return end
+		if not self2.container or typeof(self2.container) ~= "Instance" then return end
 		duration = duration or animationSpeed
 		local tweenInfo = TweenInfo.new(duration, animationStyle, animationDirection)
 		local tween = finity.gs["TweenService"]:Create(self2.container, tweenInfo, {[property] = targetValue})
@@ -328,7 +227,12 @@ function finity.new(isdark, gprojectName, thinProject)
 	-- Window Focus Management
 	local function updateWindowFocus()
 		if not self2.container or typeof(self2.container) ~= "Instance" then return end
-		windowFocused = self2.container:IsMouseOver()
+		local success, result = pcall(function()
+			return self2.container:IsMouseOver()
+		end)
+		if not success then return end
+		
+		windowFocused = result
 		if windowFocused ~= lastFocused then
 			lastFocused = windowFocused
 			if windowFocused then
@@ -339,115 +243,88 @@ function finity.new(isdark, gprojectName, thinProject)
 		end
 	end
 
-	-- Window State Saving
-	local function saveWindowState()
-		local state = {
-			Position = self2.container.Position,
-			Size = self2.container.Size,
-			State = currentState,
-			Theme = isdark and "Dark" or "Light"
-		}
-		pcall(function()
-			game:GetService("HttpService"):SetAsync("FinityUI_State", state)
-		end)
-	end
-
-	local function loadWindowState()
-		local success, state = pcall(function()
-			return game:GetService("HttpService"):GetAsync("FinityUI_State")
-		end)
-		
-		if success and state then
-			if state.Theme == "Dark" and not isdark then
-				isdark = true
-				theme = finity.dark_theme
-			elseif state.Theme == "Light" and isdark then
-				isdark = false
-				theme = finity.theme
-			end
-			
-			if state.State == windowStates.Minimized then
-				self2.Minimize()
-			elseif state.State == windowStates.Maximized then
-				self2.Maximize()
-			end
-			
-			if state.Position and state.Size then
-				self2.container.Position = state.Position
-				self2.container.Size = state.Size
-				originalSize = state.Size
-				originalPosition = state.Position
-			end
-		end
-	end
-
-	-- Update window state management
-	self2.Minimize = function()
-		if currentState ~= windowStates.Minimized then
-			currentState = windowStates.Minimized
-			finityData.Minimized = true
-			animateWindow("Size", UDim2.new(0, 800, 0, 30))
-			animateWindow("Position", UDim2.new(0.5, 0, 1, -30))
-			saveWindowState()
-		else
-			currentState = windowStates.Normal
-			finityData.Minimized = false
-			animateWindow("Size", originalSize)
-			animateWindow("Position", originalPosition)
-			saveWindowState()
-		end
-	end
-
-	self2.Maximize = function()
-		if currentState ~= windowStates.Maximized then
-			currentState = windowStates.Maximized
-			finityData.Maximized = true
-			originalSize = self2.container.Size
-			originalPosition = self2.container.Position
-			animateWindow("Size", UDim2.new(1, -20, 1, -20))
-			animateWindow("Position", UDim2.new(0.5, 0, 0.5, 0))
-			saveWindowState()
-		else
-			currentState = windowStates.Normal
-			finityData.Maximized = false
-			animateWindow("Size", originalSize)
-			animateWindow("Position", originalPosition)
-			saveWindowState()
-		end
-	end
-
 	-- Add focus update to RunService
 	task.spawn(function()
 		task.wait(0.1) -- Small delay to ensure container is created
-		finity.gs["RunService"].RenderStepped:Connect(updateWindowFocus)
-	end)
-
-	-- Load saved state after container is created
-	task.spawn(function()
-		task.wait(0.1) -- Small delay to ensure container is created
-		loadWindowState()
+		if self2.container and typeof(self2.container) == "Instance" then
+			finity.gs["RunService"].RenderStepped:Connect(updateWindowFocus)
+		end
 	end)
 
 	-- Setup auto-save after all UI elements are created
 	task.spawn(function()
 		task.wait(0.1) -- Small delay to ensure UI elements are created
-		setupAutoSave()
+		if self2.container and typeof(self2.container) == "Instance" then
+			setupAutoSave()
+		end
 	end)
 
-	-- Add the container to the UI
-	self2.container.Parent = self2.userinterface
+	-- Load saved state after container is created
+	task.spawn(function()
+		task.wait(0.1) -- Small delay to ensure container is created
+		if self2.container and typeof(self2.container) == "Instance" then
+			loadWindowState()
+		end
+	end)
 
-	if not finity.gs["RunService"]:IsStudio() then
-		self2.userinterface.Parent = self.gs["CoreGui"]
+	-- Add the rest of the UI elements
+	self2.sidebar = self:Create("Frame", {
+		Name = "Sidebar",
+		BackgroundColor3 = Color3.new(0.976471, 0.937255, 1),
+		BackgroundTransparency = 1,
+		BorderColor3 = Color3.new(0.745098, 0.713726, 0.760784),
+		Size = UDim2.new(0, 120, 1, -30),
+		Position = UDim2.new(0, 0, 0, 30),
+		ZIndex = 2,
+	})
+
+	self2.categories = self:Create("Frame", {
+		Name = "Categories",
+		BackgroundColor3 = Color3.new(0.976471, 0.937255, 1),
+		ClipsDescendants = true,
+		BackgroundTransparency = 1,
+		BorderColor3 = Color3.new(0.745098, 0.713726, 0.760784),
+		Size = UDim2.new(1, -120, 1, -30),
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, 0, 0, 30),
+		ZIndex = 2,
+	})
+	self2.categories.ClipsDescendants = true
+
+	self2.topbar = self:Create("Frame", {
+		Name = "Topbar",
+		ZIndex = 2,
+		Size = UDim2.new(1,0,0,30),
+		BackgroundTransparency = 2
+	})
+
+	self2.tip = self:Create("TextLabel", {
+		Name = "TopbarTip",
+		ZIndex = 2,
+		Size = UDim2.new(1, -30, 0, 30),
+		Position = UDim2.new(0, 30, 0, 0),
+		Text = "Press '".. string.sub(tostring(self.ToggleKey), 14) .."' to hide this menu",
+		Font = Enum.Font.GothamSemibold,
+		TextSize = 13,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		BackgroundTransparency = 1,
+		TextColor3 = theme.text_color,
+	})
+	
+	if projectName then
+		self2.tip.Text = projectName
 	else
-		self2.userinterface.Parent = self.gs["Players"].LocalPlayer:WaitForChild("PlayerGui")
+		self2.tip.Text = "Press '".. string.sub(tostring(self.ToggleKey), 14) .."' to hide this menu"
 	end
 
-	self2.container.Parent = self2.userinterface
+	-- Add UI elements to container
 	self2.categories.Parent = self2.container
 	self2.sidebar.Parent = self2.container
 	self2.topbar.Parent = self2.container
 	self2.tip.Parent = self2.topbar
+
+	-- Add shadow
+	self:addShadow(self2.container, 0)
 
 	return self2, finityData
 end
