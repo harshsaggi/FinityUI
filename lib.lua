@@ -229,22 +229,26 @@ function finity.new(isdark, gprojectName, thinProject)
 	local function setupAutoSave()
 		if autoSave then
 			-- Save when window state changes
-			self2.container:GetPropertyChangedSignal("Position"):Connect(function()
-				self2.SaveConfig()
-			end)
-			
-			self2.container:GetPropertyChangedSignal("Size"):Connect(function()
-				self2.SaveConfig()
-			end)
+			if self2.container then
+				self2.container:GetPropertyChangedSignal("Position"):Connect(function()
+					self2.SaveConfig()
+				end)
+				
+				self2.container:GetPropertyChangedSignal("Size"):Connect(function()
+					self2.SaveConfig()
+				end)
+			end
 			
 			-- Save when UI elements change
-			for _, category in pairs(self2.categories:GetChildren()) do
-				if category:IsA("ScrollingFrame") then
-					for _, element in pairs(category:GetDescendants()) do
-						if element:IsA("TextButton") or element:IsA("TextBox") then
-							element:GetPropertyChangedSignal("Text"):Connect(function()
-								self2.SaveConfig()
-							end)
+			if self2.categories then
+				for _, category in pairs(self2.categories:GetChildren()) do
+					if category:IsA("ScrollingFrame") then
+						for _, element in pairs(category:GetDescendants()) do
+							if element:IsA("TextButton") or element:IsA("TextBox") then
+								element:GetPropertyChangedSignal("Text"):Connect(function()
+									self2.SaveConfig()
+								end)
+							end
 						end
 					end
 				end
